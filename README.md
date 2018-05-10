@@ -41,3 +41,7 @@ once running go to the ip given by the script in a browser and start downloading
 if you want to verify the dumps afterwards you can use md5sum in linux or fsum in windows
 
 # WHY ARENT THE KEYS ON THE PAGE
+i was planning to add the downloading of the system's BIS keys and all other keys but i wasn't able to enable/access the TSEC/Falcon processor from python/linux. i tried poking the registers but it freezes the switch.
+i have tried starting from scratch and trying to enable everything needed trough the clock registers but most of them are access denied when accessed through /dev/mem or devmem2 
+this is as far as i got and linux is not an OS/system/kernel i know well sadly.
+linux knows tsec is there but accessing is not as direct as i had hoped. if anyone can help me out with that, i would love to add that functionality!
