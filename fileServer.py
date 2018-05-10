@@ -66,23 +66,29 @@ class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
                 file_content = fd.read()
                 fd.close()
 
-                #read boot0 hash
-                #output = subprocess.run(["md5sum","/dev/mmcblk1boot0"],stdout=subprocess.PIPE)      
-                #hash = output.stdout.decode('utf-8')
-                #hash = hash[:32]
-                html = file_content.replace("mmcblk1boot0_hash",mmcblk1boot0_hash)
+                #boot0 hash
+                if(mmcblk1boot0_hash != " "):
+                    html = file_content.replace("mmcblk1boot0_hash",mmcblk1boot0_hash)
+                else:
+                    html = file_content.replace("- MD5 : mmcblk1boot0_hash","")
 
-                #read boot1 hash
-                #output = subprocess.run(["md5sum","/dev/mmcblk1boot1"],stdout=subprocess.PIPE)
-                #hash = output.stdout.decode('utf-8')
-                #hash = hash[:32]
-                html = html.replace("mmcblk1boot1_hash",mmcblk1boot1_hash)
+                #boot1 hash
+                if(mmcblk1boot0_hash != " "):
+                    html = html.replace("mmcblk1boot1_hash",mmcblk1boot1_hash)
+                else:
+                    html = html.replace("- MD5 : mmcblk1boot1_hash","")
 
                 #NAND
-                html = html.replace("mmcblk1_hash",mmcblk1_hash)
+                if(mmcblk1_hash != " "):
+                    html = html.replace("mmcblk1_hash",mmcblk1_hash)
+                else:
+                    html = html.replace("- MD5 : mmcblk1_hash","")
 
                 #tsec fw
-                html = html.replace("TSEC_FW_hash",tsecfw_hash)
+                if(tsecfw_hash != " "):
+                    html = html.replace("TSEC_FW_hash",tsecfw_hash)
+                else:
+                    html = html.replace("- MD5 : TSEC_FW_hash","")
 
                 self.send_response(200)
                 self.send_header('Content-type','text/html')
