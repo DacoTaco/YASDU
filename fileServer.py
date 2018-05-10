@@ -5,6 +5,8 @@ import os
 import sys
 import shutil
 import hashlib
+
+#global variables
 from http.server import BaseHTTPRequestHandler, HTTPServer
 mmcblk1_hash = " "
 mmcblk1boot0_hash = " "
@@ -12,17 +14,18 @@ mmcblk1boot1_hash = " "
 tsecfw_hash = " "
 tsecfw_size = 3840 
 tsecfw_offset = " "
+get_nand_hash = True
 
 # HTTPRequestHandler class
 class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
-  global mmcblk1_hash
-  global mmcblk1boot0_hash
-  global mmcblk1boot1_hash
-  global tsecfw_size
-  global tsecfw_hash
-  global tsecfw_offset
-  # GET
-  def do_GET(self):
+    global mmcblk1_hash
+    global mmcblk1boot0_hash
+    global mmcblk1boot1_hash
+    global tsecfw_size
+    global tsecfw_hash
+    global tsecfw_offset
+    # GET
+    def do_GET(self):
         request_path = self.path
         request_path = request_path.strip('/')
         download = False
@@ -122,11 +125,13 @@ def calc_hashes():
     global mmcblk1_hash
     global mmcblk1boot0_hash
     global mmcblk1boot1_hash
+    global get_nand_hash
 
-    output = subprocess.run(["md5sum","/dev/mmcblk1"],stdout=subprocess.PIPE)
-    hash = output.stdout.decode('utf-8')
-    mmcblk1_hash = hash[:32]
-    print('mmcblk1 hash : %s'%mmcblk1_hash)
+    if(get_nand_hash):
+        output = subprocess.run(["md5sum","/dev/mmcblk1"],stdout=subprocess.PIPE)
+        hash = output.stdout.decode('utf-8')
+        mmcblk1_hash = hash[:32]
+        print('mmcblk1 hash : %s'%mmcblk1_hash)
 
     output = subprocess.run(["md5sum","/dev/mmcblk1boot0"],stdout=subprocess.PIPE)
     hash = output.stdout.decode('utf-8')
@@ -138,30 +143,57 @@ def calc_hashes():
     mmcblk1boot1_hash = hash[:32]
     print('boot1 hash : %s'%mmcblk1boot1_hash)
 
+def ShowArguments():
+    print('Arguments : ')
+    print('\t-s or --skip : skip making hash for the nand, making server boot faster')
+    print('\t-h or --help : show this message')   
+
 def run():
-  global mmcblk1_hash
-  global mmcblk1boot0_hash
-  global mmcblk1boot1_hash
-  print('HELLOOOO AND WELCOME!')
-  #check if we are root...
-  if os.geteuid() != 0:
-    exit("You need to have root privileges to run this script.\nDid you use sudo?")
+    global mmcblk1_hash
+    global mmcblk1boot0_hash
+    global mmcblk1boot1_hash
+    global get_nand_hash
 
-  print('calculating hashes...')
-  print('this could take a while ( +/- 7min on 32GB switch) so get a drink :)')
-  calc_hashes()
-  #print("var : '%s'"%mmcblk1boot1_hash)
+    print('\n\r\n\r')
+    print('--------------------DacoTaco presents...------------------------')
+    print('\t\tHELLOOOO AND WELCOME TO YASDU!')
+    print('\t(Y)et (A)nother (S)witch (D)umping (U)tility')  
+    print('----------------------------------------------------------------\n\r\n\r')
 
-  print('retrieving FSEC FW...')
-  CheckTSECFW()
+    argc = len(sys.argv)
+    for i in range(1,argc):
+        if(sys.argv[i] == "-s" or sys.argv[i] == "--skip"):
+            get_nand_hash = False
+        elif(sys.argv[i] == "-h" or sys.argv[i] == "--help"):
+            ShowArguments()        
+            exit()
+        else:
+            print("unknown argument %s"%sys.argv[i])
+            ShowArguments()
+            exit()
+
+    #check if we are root...
+    if os.geteuid() != 0:
+        exit("You need to have root privileges to run this script.\nDid you use sudo?")
+
+    print('calculating hashes...')
+
+    if(get_nand_hash):
+        print('this could take a while ( +/- 7min on 32GB switch) so get a drink :)')
+    
+    calc_hashes()
+    #print("var : '%s'"%mmcblk1boot1_hash)
+
+    print('retrieving FSEC FW...')
+    CheckTSECFW()
   
-  print('starting server...')
-  # Server settings
-  # Choose port 8080, for port 80, which is normally used for a http server, you need root access
-  server_address = ('0.0.0.0', 1337 )
-  httpd = HTTPServer(server_address, HTTPServer_RequestHandler)
-  print('running server...')
-  httpd.serve_forever()
+    print('starting server...')
+    # Server settings
+    # listen to all connections (internal and external) & on port 1337
+    server_address = ('0.0.0.0', 1337 )
+    httpd = HTTPServer(server_address, HTTPServer_RequestHandler)
+    print('running server...')
+    httpd.serve_forever()
  
  
 run()
