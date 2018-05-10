@@ -5,6 +5,9 @@ import os
 import sys
 import shutil
 import hashlib
+import socket
+import fcntl
+import struct
 
 #global variables
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -149,6 +152,19 @@ def calc_hashes():
     mmcblk1boot1_hash = hash[:32]
     print('boot1 hash : %s'%mmcblk1boot1_hash)
 
+def GetIpAddress(ifname):
+    #s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #return socket.inet_ntoa(fcntl.ioctl(
+    #    s.fileno(),
+    #    0x8915,  # SIOCGIFADDR
+    #    struct.pack('256s', ifname[:15])
+    #)[20:24])
+    output = subprocess.check_output(['hostname', '--ip-address'])
+    output = output.decode()
+    output = output.replace("\n","")
+    output = output.replace(" ","")
+    return output
+
 def ShowArguments():
     print('Arguments : ')
     print('\t-s or --skip : skip making hash for the nand, making server boot faster')
@@ -199,6 +215,7 @@ def run():
     server_address = ('0.0.0.0', 1337 )
     httpd = HTTPServer(server_address, HTTPServer_RequestHandler)
     print('running server...')
+    print('server ip : http://%s:1337'%GetIpAddress('eth0'))
     httpd.serve_forever()
  
  
