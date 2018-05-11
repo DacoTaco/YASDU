@@ -27,6 +27,7 @@ class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
     global tsecfw_size
     global tsecfw_hash
     global tsecfw_offset
+    filename = " "
     # GET
     def do_GET(self):
         request_path = self.path
@@ -45,13 +46,15 @@ class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
                 path = "/dev/%s"%(request_path)
                 size = subprocess.run(["blockdev","--getsize64",path],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                 size = size.stdout.decode()
+                filename = "%s.bin"%request_path            
             else:
+                filename = "tsecfw.inl"
                 size = tsecfw_size
         try:
             if(download):
                 self.send_response(200)
                 self.send_header("Content-Type:","application/octet-stream")
-                self.send_header("Content-Disposition:"," attachment;filename=%s.bin"%request_path)
+                self.send_header("Content-Disposition:","attachment;filename=%s"%filename)
                 self.send_header("Content-Lenght:","%i"%int(size))
                 self.end_headers()
                 #self.wfile.write(bytes("downloading file...<br>","utf8"))
