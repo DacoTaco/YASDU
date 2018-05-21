@@ -12,6 +12,7 @@ import struct
 #global variables
 from http.server import BaseHTTPRequestHandler, HTTPServer
 mmcblk1_hash = " "
+mmcblk1p9_hash = " "
 mmcblk1boot0_hash = " "
 mmcblk1boot1_hash = " " 
 tsecfw_hash = " "
@@ -22,6 +23,7 @@ get_nand_hash = True
 # HTTPRequestHandler class
 class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
     global mmcblk1_hash
+    global mmcblk1p9_hash
     global mmcblk1boot0_hash
     global mmcblk1boot1_hash
     global tsecfw_size
@@ -39,7 +41,8 @@ class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
             request_path == "mmcblk1" or
             request_path == "mmcblk1boot0" or
             request_path == "mmcblk1boot1" or
-	        request_path == "tsec_fw"
+	        request_path == "tsec_fw" or
+            request_path == "mmcblk1p9"
         ):
             download = True
             if(request_path != "tsec_fw"):
@@ -96,6 +99,11 @@ class HTTPServer_RequestHandler(BaseHTTPRequestHandler):
                 else:
                     html = html.replace("- MD5 : TSEC_FW_hash","")
 
+                if(mmcblk1p9_hash != " "):
+                    html = html.replace("mmcblk1p9_hash",mmcblk1p9_hash)
+                else:
+                    html = html.replace("- MD5 : mmcblk1p2","")
+
                 self.send_response(200)
                 self.send_header('Content-type','text/html')
                 self.end_headers()
@@ -135,6 +143,7 @@ def CheckTSECFW():
     return
 def calc_hashes():
     global mmcblk1_hash
+    global mmcblk1p9_hash
     global mmcblk1boot0_hash
     global mmcblk1boot1_hash
     global get_nand_hash
@@ -144,6 +153,12 @@ def calc_hashes():
         hash = output.stdout.decode('utf-8')
         mmcblk1_hash = hash[:32]
         print('mmcblk1 hash : %s'%mmcblk1_hash)
+
+    output = subprocess.run(["md5sum","/dev/mmcblk1p9"],stdout=subprocess.PIPE)
+    hash = output.stdout.decode('utf-8')
+    mmcblk1p2_hash = hash[:32]
+    print('mmcblk1p2 hash : %s'%mmcblk1p2_hash)
+
 
     output = subprocess.run(["md5sum","/dev/mmcblk1boot0"],stdout=subprocess.PIPE)
     hash = output.stdout.decode('utf-8')
