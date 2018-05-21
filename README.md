@@ -1,10 +1,19 @@
 # YASDU
-Yasdu ( **Y**et **A**nother **S**witch **D**umping **U**tility ) is a switch linux tool used to dump switch data over the network.
+Yasdu ( **Y**et **A**nother **S**witch **D**umping **U**tility ) is a set of switch linux tool used to dump & access switch data.
 i developed this after wanting to dump my NAND, TSEC fw and keys but having only a small SD around. i had tried other tools around but was not pleased as the data was wrong , to big and didn't provide hashes to verify the dump ( \*cough\* https://github.com/daanhenke/httpnand/issues \*cough\* )
 
 there for , i made a python script to do it myself
 
-# HOW DO I RUN THIS D:
+...and now im just adding tools while im playing with nand :')
+
+#     NandFileServer
+# ----------------------
+
+### WHAT IS THIS
+
+the NandFileServer is a python script that sets up a web server that allows the downloading of nand & switch data
+
+### HOW DO I RUN THIS D:
 
 First check if you have python installed on the switch. this can be done using 
 ```
@@ -40,7 +49,7 @@ if you dont want to wait add -s to the python script command (after fileServer.p
 once running go to the ip given by the script in a browser and start downloading! 
 if you want to verify the dumps afterwards you can use md5sum in linux or fsum in windows
 
-# WHY ARENT THE KEYS ON THE PAGE
+### WHY ARENT THE KEYS ON THE PAGE
 i was planning to add the downloading of the system's BIS keys and all other keys but i wasn't able to enable/access the TSEC/Falcon processor from python/linux. i tried poking the registers but it freezes the switch.
 
 i have tried starting from scratch and trying to enable everything needed trough the clock registers but most of them are access denied when accessed through /dev/mem or devmem2 
