@@ -45,6 +45,11 @@ compile the code and run it like this
 ```
 
 normally, you should see the keys being detected, the partitions it found and where it added them on the mount
+if you want to mound said files so you can browse them in linux just create the mount output directory and mount them
+
+```
+sudo mount -o ro,loop /mnt/mount /mnt/nand
+```
 
 enjoy!
 
