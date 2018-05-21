@@ -1,4 +1,4 @@
-TARGET_MODULE:=Dtpass
+TARGET_MODULE:=Dan
 CC   = gcc
 CFLAGS   = -Wall $(PKGFLAGS)
 LDFLAGS  = $(PKGFLAGS)
