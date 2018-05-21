@@ -6,7 +6,7 @@ there for , i made a python script to do it myself
 
 ...and now im just adding tools while im playing with nand :')
 
-#     D.a.n
+##     D.a.n
 
 ### AAAHHH WAS IST DAS
 **D**ecrypted **A**ccess of **N**and is a tool used to allow access to the nand, decrypted
@@ -48,8 +48,21 @@ normally, you should see the keys being detected, the partitions it found and wh
 
 enjoy!
 
+### i'm getting a BIS key error!
+ow ye, i forgot didn't i? you need your bis keys dumped in a format used by [biskeydump](https://github.com/rajkosto/biskeydump) in a txt called biskeydump.txt.
 
-#     NandFileServer
+format : 
+```
+BIS KEY 0 (crypt): [crypt key 0]
+BIS KEY 0 (tweak): [tweak key 0]
+BIS KEY 1 (crypt): [crypt key 1]
+BIS KEY 1 (tweak): [tweak key 1]
+...
+etc etc
+```
+
+
+##     NandFileServer
 
 ### WHAT IS THIS
 
