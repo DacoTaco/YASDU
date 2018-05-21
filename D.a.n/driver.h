@@ -1,10 +1,11 @@
-/* Dtpass - Driver to access Switch's encrypted partition
+/* D.a.n - Driver to access Switch's encrypted partition
 	major thanks to 
 	https://www.apriorit.com/dev-blog/195-simple-driver-for-linux-os
 	and
 	https://github.com/euspectre/kedr/blob/master/sources/examples/sample_target/
-	
-	for their sample code & explanation. they explain it so well how it works
+	for their sample code & explanation. they explain it so well how modules work
+	AND 
+	tpw_rules for his FUSE code to look at. made alot more sence when i was looking at your code man
 	
 	Copyright (C) 2016-2017  DacoTaco
 	This program is free software; you can redistribute it and/or
