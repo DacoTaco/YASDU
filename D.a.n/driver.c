@@ -122,6 +122,13 @@ int nand_open(const char *path, struct fuse_file_info *fi)
 	{
         return -ENOENT;
     }
+
+    if(state[i].fp != NULL)
+    {
+        //we already have the file open!
+        printf("file already open!\n\r");
+        return 0;
+    }
 	
 	state[i].fp = open(state[i].file_path,O_RDWR);
 	
@@ -243,6 +250,7 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		int enc_read = pread(state[index].fp,enc_buf,NAND_SECTOR_SIZE,enc_offset);
 		if(enc_read <= 0)
 		{
+            printf("pread returned %d!\n\r",enc_read);
 			free(enc_buf);
 			return -EFAULT;
 		}

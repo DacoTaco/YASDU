@@ -24,6 +24,7 @@
 #ifndef _DRIVER_H_
 
 #define FUSE_USE_VERSION 26
+#define _FILE_OFFSET_BITS 64
 #define _DRIVER_H_
 
 #include <fuse.h>
