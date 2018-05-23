@@ -40,7 +40,7 @@ struct partition_state {
 	char *name;
 	char *file_path;
 	size_t partition_size;
-	int fp;
+	FILE* fp;
 	char report;
 	unsigned char tweak_key[KEY_SIZE];
 	unsigned char crypt_key[KEY_SIZE];

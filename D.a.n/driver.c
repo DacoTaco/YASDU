@@ -130,7 +130,8 @@ int nand_open(const char *path, struct fuse_file_info *fi)
         return 0;
     }
 	
-	state[i].fp = open(state[i].file_path,O_RDWR);
+	//state[i].fp = open(state[i].file_path,O_RDWR);
+	state[i].fp = fopen(state[i].file_path,"rb");
 	
     return 0;
 }
@@ -150,11 +151,16 @@ int nand_release(const char *path, struct fuse_file_info *fi)
         return -ENOENT;
     }
 	
+	if(state[i].fp == NULL)
+		return 0;
+	
 
     pthread_mutex_lock(&state[i].lock);
 	
-	close(state[i].fp);
-    
+	//close(state[i].fp);
+    fclose(state[i].fp);
+	state[i].fp = NULL;
+	
     pthread_mutex_unlock(&state[i].lock);
     return 0;
 }
@@ -247,7 +253,9 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 	{	
 		//read encrypted data,aligned to a full sector
 		//printf("reading sector %lld/0x%x ( 0x%lx -> 0x%lx)\n\r",sector,sector_offset,enc_offset,enc_offset+NAND_SECTOR_SIZE);
-		int enc_read = pread(state[index].fp,enc_buf,NAND_SECTOR_SIZE,enc_offset);
+		//int enc_read = pread(state[index].fp,enc_buf,NAND_SECTOR_SIZE,enc_offset);
+		fseek(state[index].fp,enc_offset,SEEK_SET);
+		int enc_read = fread(enc_buf,1,NAND_SECTOR_SIZE,state[index].fp);
 		if(enc_read <= 0)
 		{
             printf("pread returned %d!\n\r",enc_read);
