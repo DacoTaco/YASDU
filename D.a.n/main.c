@@ -51,6 +51,25 @@ char file_exists(const char* filename)
 
 int main(int argc, char *argv[]) 
 {
+	//loop trough all parameters and check if we have '-l' for local in there
+	char* fuse_argv[argc];
+	int fuse_argc = 0;
+	char local_files = 0;
+	
+	for(int i = 0;i < argc;i++)
+	{
+		if(strncmp(argv[i],"-l",2) == 0)
+		{
+			local_files = 1;
+		}
+		else
+		{
+			fuse_argv[fuse_argc] = argv[i];
+			fuse_argc++;
+		}
+		
+	}
+	
 	
 	//first load in the keys
 	FILE* fp = fopen("biskeydump.txt","r");
@@ -129,7 +148,13 @@ int main(int argc, char *argv[])
 		return -EFAULT;
 	}
 	
-	//set up device
+	
+	//set up device & look for files...
+	printf("searching partitions...\n\r");
+	if(local_files > 0)
+	{
+		printf("using local files...\n");	
+	}
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
 		state[i].name = DEVICE_NAME[i];
@@ -154,8 +179,18 @@ int main(int argc, char *argv[])
 				part = i+7;
 				break;
 		}
+		
+		
 		// p1,p2,p9,p10,p11
-		snprintf(path,32,"/dev/mmcblk1p%d",part);
+		if(local_files == 1)
+		{
+			snprintf(path,32,"./mmcblk1p%d.bin",part);
+		}
+		else
+		{
+			snprintf(path,32,"/dev/mmcblk1p%d",part);
+		}
+		
         printf("searching for %s...\n\r",path);
 		if(file_exists(path))
 		{
@@ -175,9 +210,9 @@ int main(int argc, char *argv[])
 	printf("LEGGO\n\r");
 	
 #if FUSE_USE_VERSION < 26
-	return fuse_main(argc, argv, &nand_oper);
+	return fuse_main(fuse_argc, fuse_argv, &nand_oper);
 #else
-	return fuse_main(argc, argv, &nand_oper,&state);
+	return fuse_main(fuse_argc, fuse_argv, &nand_oper,&state);
 #endif
 	
 }
