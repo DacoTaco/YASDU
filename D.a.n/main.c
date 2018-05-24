@@ -155,7 +155,8 @@ int main(int argc, char *argv[])
 				break;
 		}
 		// p1,p2,p9,p10,p11
-		snprintf(path,32,"./mmcblk1p%d.bin",part);
+		snprintf(path,32,"/dev/mmcblk1p%d",part);
+        printf("searching for %s...\n\r",path);
 		if(file_exists(path))
 		{
 			printf("%s added as -> %s \n\r",path,DEVICE_NAME[i]);

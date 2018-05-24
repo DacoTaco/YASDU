@@ -151,7 +151,9 @@ int nand_release(const char *path, struct fuse_file_info *fi)
         return -ENOENT;
     }
 	
-	if(state[i].fp == NULL)
+	
+	//closing not needed, when app closes, file handles get closed
+	/*if(state[i].fp == NULL)
 		return 0;
 	
 
@@ -161,7 +163,7 @@ int nand_release(const char *path, struct fuse_file_info *fi)
     fclose(state[i].fp);
 	state[i].fp = NULL;
 	
-    pthread_mutex_unlock(&state[i].lock);
+    pthread_mutex_unlock(&state[i].lock);*/
     return 0;
 }
 
@@ -286,7 +288,9 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		sector_offset = 0;
     }
 
-	free(enc_buf);
+	if(read != size)
+		printf("!!!!!WARNING!!!!!! READ : %d , ASKED SIZE : %ld\n\r",read,size);
+	free(enc_buf);	
     return read;
 }
 
