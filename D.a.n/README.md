@@ -18,29 +18,28 @@ if a command unknown error pops up, install it using your package manager
 ```
 sudo pacman -Syu fuse libfuse-dev
 ```
-or
+or for debian : 
 ```
 sudo apt-get install fuse libfuse-dev
 ```
 
-once installed, close YASDU like always
+once installed, clone YASDU like always
 
 ```
 git clone https://github.com/DacoTaco/YASDU.git
 ```
 
-compile the code and run it like this
-
+compile the code by running make and start D.a.n by running run_Dan.sh, which does some preperations and executes dan as following
 
 ```
-./Dan -f -o allow_root /mnt/mount
+./Dan -f -o allow_root /mnt/Dan/
 ```
 
 normally, you should see the keys being detected, the partitions it found and where it added them on the mount
-if you want to mound said files so you can browse them in linux just create the mount output directory and mount them
+if you want to mount said partitions so you can browse them in linux just create the mount output directory and mount them
 
 ```
-sudo mount -o ro,loop /mnt/mount /mnt/nand
+sudo mount -o ro,loop /mnt/Dan /mnt/dec_Nand
 ```
 
 enjoy!
