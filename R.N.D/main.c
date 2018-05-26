@@ -6,8 +6,6 @@
 #include "aes.h"
 #include "ccrypto.c"
 
-static char *prog_name = "nandtool";
-
 //OMFG THANKS  https://github.com/ihaveamac/switchfs FOR THE SOURCE
 //since some people keep their shit closed source and all...
 
@@ -19,17 +17,16 @@ static char *prog_name = "nandtool";
 
 
 static void usage(void) {
-    fprintf(stderr, 
-		"--i=[file]\n"
-		"--o=[output]\n"
-		"--k=[key number]\n"
-        , __TIME__, __DATE__, prog_name);
+    fprintf(stderr,"Usage : \n--i=[file]\n--o=[output]\n--k=[key number]\n");
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char **argv) {
-        
-    prog_name = (argc < 1) ? "nandtool" : argv[0];
+	
+	printf("/--------------------------------------------------------------------\\ \n\r");
+	printf("|                           DacoTaco's R.N.D                          | \n\r");
+	printf("|                        Random Nand Decryptor                        | \n\r");
+	printf("\\--------------------------------------------------------------------/ \n\r");
 	
 	unsigned char encryptionKey[KEY_COUNT][KEY_SIZE] = {0};
 	unsigned char tweakKey[KEY_COUNT][KEY_SIZE] = {0};
