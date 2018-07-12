@@ -3,8 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "aes.h"
-#include "ccrypto.c"
+#include "xts_crypto.h"
 
 //OMFG THANKS  https://github.com/ihaveamac/switchfs FOR THE SOURCE
 //since some people keep their shit closed source and all...
@@ -25,7 +24,7 @@ int main(int argc, char **argv) {
 	
 	printf("/--------------------------------------------------------------------\\ \n\r");
 	printf("|                           DacoTaco's R.N.D                          | \n\r");
-	printf("|                        Random Nand Decryptor                        | \n\r");
+	printf("|                         Random Nand Decryptor                       | \n\r");
 	printf("\\--------------------------------------------------------------------/ \n\r");
 	
 	unsigned char encryptionKey[KEY_COUNT][KEY_SIZE] = {0};
@@ -46,13 +45,16 @@ int main(int argc, char **argv) {
 		char argument[8] = {0};
 		memcpy(argument,argv[i],4);
 		
-		if(strncmp(argument,"--p=",4) == 0)
+		if(strncmp(argument,"--k=",4) == 0)
 		{
-			chosen_key = (char)strtol(argument+4,NULL,16);
+			char key_string[2] = { 0 };
+			key_string[0] = *argument + 4;
+			chosen_key = (int)strtol(key_string,NULL,10);
 			if(chosen_key > KEY_COUNT || chosen_key < 0)
 			{
 				usage();
 			}
+			//printf("key : %d\n\r",chosen_key);
 		}
 		else if(strncmp(argument,"--i=",4) == 0)
 		{
@@ -147,9 +149,8 @@ int main(int argc, char **argv) {
 	printf("\n\nopening %s & %s...\n",inputFilePath,outputFilePath);
 	
 	unsigned char* inBuf = NULL;
-	unsigned char* outBuf = NULL;
 	unsigned int fileSize = 0;
-	int sectors = 0;	
+	size_t sectors = 0;	
 	FILE* in_fd = fopen(inputFilePath,"rb");
 	FILE* out_fd = fopen(outputFilePath,"wb");
 	
@@ -163,8 +164,7 @@ int main(int argc, char **argv) {
 	fileSize = ftell(in_fd);
 	fseek(in_fd,0,SEEK_SET);
 	
-	inBuf = malloc(fileSize);
-	//outBuf = malloc(fileSize);
+	inBuf = (unsigned char*)malloc(fileSize);
 	
 	fread(inBuf,1,fileSize,in_fd);
 	
@@ -176,31 +176,24 @@ int main(int argc, char **argv) {
 	}
 	printf("detected size : 0x%X , 0x%X sectors\n",fileSize,sectors);
 	
+	xts_crypto crypto (encryptionKey[chosen_key], tweakKey[chosen_key], NAND_SECTROR_SIZE);
 	printf("decrypting...\n");
 	unsigned int decrypted = 0x0;
-	unsigned long long tweakHI,tweakLO = 0;
-	for(unsigned long long i=0;i<(unsigned long long)sectors;i++)
-	{		
-		tweakHI = ((unsigned long long)i >> 63) & 0xFFFFFFFFFFFFFFFF;
-		tweakLO = i & 0xFFFFFFFFFFFFFFFF;
-		unsigned char* ptr = inBuf + decrypted;
-		
-		int decryptSize = (decrypted + DEC_NAND_SIZE > fileSize)?fileSize - decrypted:DEC_NAND_SIZE;
-
-		aes_xtsn_decrypt(ptr,decryptSize,encryptionKey[chosen_key],tweakKey[chosen_key],tweakHI,tweakLO,NAND_SECTROR_SIZE);
-		decrypted +=decryptSize;
-		printf("\rdecrypted sector %u | 0x%X bytes of 0x%0X | 0x%x",(int)i,decrypted,fileSize,decryptSize);
-		//printf("\rdecrypted sector %d | 0x%X bytes of 0x%0X | tweakHI : %I64u & tweakLO : %I64u",i,decrypted,fileSize,tweakHI,tweakLO);
-		fwrite(ptr,1,decryptSize,out_fd);
-		//getchar();
-	}
-	printf("\n");
-
-	/*printf("writing...\n");
-	fwrite(inBuf,1,fileSize,out_fd);*/
 	
+	for (size_t i = 0; i < sectors; i++) 
+	{
+		unsigned char* ptr = inBuf + decrypted;
+        crypto.decrypt(ptr, i);
+		decrypted +=NAND_SECTROR_SIZE;
+		fwrite(ptr,1,NAND_SECTROR_SIZE,out_fd);
+		int decryptSize = (decrypted + NAND_SECTROR_SIZE > fileSize)?fileSize - decrypted:NAND_SECTROR_SIZE;
+		printf("\rdecrypted sector %u | 0x%X bytes of 0x%0X | 0x%x",(int)i,decrypted,fileSize,decryptSize);
+    }
+	
+	
+	printf("\n");
+	 
 	free(inBuf);
-	//free(outBuf);
 	fclose(in_fd);
 	fclose(out_fd);
 

@@ -1,6 +1,8 @@
 CC = gcc
+CXX = g++
 CFLAGS = -O2 -Wall -Wextra -pedantic -std=gnu11 -fPIC
-LDFLAGS = 
+CXXFLAGS = -O2 -Wall -Wextra -pedantic -std=gnu++11 -fPIC 
+LDFLAGS = -lcrypto
 
 
 .PHONY: clean
@@ -10,12 +12,12 @@ all:
 	$(MAKE) nandtool
 
 .c.o:
-	$(CC) $(INCLUDE) -c $(CFLAGS) -o $@ $<
+	$(CXX) $(INCLUDE) $(LDFLAGS) -c $(CXXFLAGS) -o $@ $<
 
-nandtool: aes.o main.o
-	$(CC) -o $@ $^ $(LDFLAGS)
-	
-aes.o: aes.h
+nandtool: xts_crypto.o main.o
+	$(CXX) -o $@ $^ $(LDFLAGS)
+
+xts_crypto.o : xts_crypto.h
 
 clean:
 	rm -f *.o nandtool nandtool.exe
