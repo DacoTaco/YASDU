@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
 		if(strncmp(argument,"--k=",4) == 0)
 		{
 			char key_string[2] = { 0 };
-			key_string[0] = *argument + 4;
+			key_string[0] = *(argument + 4);
 			chosen_key = (int)strtol(key_string,NULL,10);
 			if(chosen_key > KEY_COUNT || chosen_key < 0)
 			{
