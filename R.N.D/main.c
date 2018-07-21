@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
 		}
 		
 		char argument[8] = {0};
-		memcpy(argument,argv[i],4);
+		memcpy(argument,argv[i],5);
 		
 		if(strncmp(argument,"--k=",4) == 0)
 		{
