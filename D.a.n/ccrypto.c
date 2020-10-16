@@ -1,4 +1,4 @@
-/* AES-XTS by @luigoalma, based on @plutooo's gist*/
+/* AES-XTS by DacoTaco , altered version from @luigoalma, based on @plutooo's gist*/
 
 #include <stdbool.h>
 
@@ -11,7 +11,9 @@
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
+typedef int32_t s32;
 typedef uint64_t u64;
+typedef int64_t s64;
 
 union {
     u16 foo;
@@ -51,28 +53,63 @@ inline static void shift128(u8 *foo) {
     }
 }
 
-void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size) {
-    u64 i;	
-    struct AES_ctx _key, _tweak;
-    AES_init_ctx(&_key, key);
-    AES_init_ctx(&_tweak, tweakin);
-    u64 position[2] = {sectoroffsethi, sectoroffsetlo};
+void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
+{
+	if(len == 0)
+		return;
+	if(sectoroffset > sector_size)
+		sectoroffset = 0;
 
-    for (i = 0; i < (len / (u64) sector_size); i++) {
-        if (position[1] > (position[1] + 1LLU)) 
+	u64 i;	
+	struct AES_ctx _key, _tweak;
+	AES_init_ctx(&_key, key);
+	AES_init_ctx(&_tweak, tweakin);
+	u64 position[2] = {sectoroffsethi, sectoroffsetlo};
+	u64 sectorsToRead = (len < sector_size) ? 1 : (len / (u64)sector_size);
+
+	for (i = 0; i < sectorsToRead; i++) 
+	{
+		if (position[1] > (position[1] + 1LLU)) 
 			position[0] += 1LLU; //if overflow, we gotta
-        union bigint128 tweak = geniv(position[0], position[1]);
-        AES_ECB_encrypt(&_tweak, tweak.value8);
-		unsigned int j;
-        for (j = 0; j < sector_size / 16; j++) {
-            xor128(buffer, tweak.value8);
-            AES_ECB_decrypt(&_key, buffer);
-            xor128(buffer, tweak.value8);
-            bool flag = tweak.value8[15] & 0x80;
-            shift128(tweak.value8);
-            if (flag) tweak.value8[0] ^= 0x87;
-            buffer += 16;
-        }
-        position[1] += 1LLU;
-    }
+		union bigint128 tweak = geniv(position[0], position[1]);
+		AES_ECB_encrypt(&_tweak, tweak.value8);
+		u64 j = 0;
+		
+		while( ( j < len / 0x10))// && ( j < sector_size / 0x10 ) )
+		{
+			//decrypt if we aren't at a skipped block
+			if(sectoroffset/0x10 > j)
+			{
+				//printf("skip!\r\n");
+				if(sectoroffset > 0x10)
+					sectoroffset -= 0x10;
+				else
+					sectoroffset = 0;
+			}
+			else //decrypt !
+			{
+				//printf("decrypt!\r\n");
+				xor128(buffer, tweak.value8);
+				AES_ECB_decrypt(&_key, buffer);
+				xor128(buffer, tweak.value8);
+				buffer += 0x10;			
+				j++;
+			}				
+
+			//set the tweak value for the next 0x10 block
+			bool flag = tweak.value8[15] & 0x80;
+			shift128(tweak.value8);
+			if (flag) 
+				tweak.value8[0] ^= 0x87;
+
+			//end of a sector. this can only work if we decrypted from address 0 of a sector though
+			//kinda unreliable , so commented
+			/*if(j > 0 && j%(sector_size / 0x10) == 0)
+			{
+				//printf("end of sector : %d\r\n",j);
+				break;
+			}*/
+		}
+		position[1] += 1LLU;
+	}
 }

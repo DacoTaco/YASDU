@@ -236,56 +236,59 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
         size = state[index].partition_size - offset;
     }
 
-	//we first need to allign to the starting read sector of the nand 
-	//we do this by deviding & multiplying ofc
-	//first get sector number, then align to the right offset
-	//sector -HAS- to be a unsigned long long
-	unsigned long long sector = ( offset / NAND_SECTOR_SIZE);
-	off_t enc_offset = NAND_SECTOR_SIZE * sector;
-	
-	unsigned char* enc_buf = (unsigned char*)malloc(NAND_SECTOR_SIZE);
+	int read_size = 0x400; //NAND_SECTOR_SIZE
+	unsigned char* enc_buf = (unsigned char*)malloc(read_size);
 	if(enc_buf == NULL)
 		return -ENOMEM;
 	
-	int read = 0;
-	int sector_offset = offset - enc_offset;
-	unsigned long long tweakHI,tweakLO = 0;
 	printf("request : 0x%lx -> 0x%lx\n\r",offset,offset+size);
-    while (read < size) 
+	int read = 0;
+	unsigned long long read_offset = offset - (offset % 0x10);
+	unsigned long long decrypt_offset = offset % NAND_SECTOR_SIZE;
+	unsigned long long read_skip = offset % 0x10;
+	unsigned long long tweakHI,tweakLO = 0;	
+    while (read < size)
 	{	
-		//read encrypted data,aligned to a full sector
-		//printf("reading sector %lld/0x%x ( 0x%lx -> 0x%lx)\n\r",sector,sector_offset,enc_offset,enc_offset+NAND_SECTOR_SIZE);
-		//int enc_read = pread(state[index].fp,enc_buf,NAND_SECTOR_SIZE,enc_offset);
-		fseek(state[index].fp,enc_offset,SEEK_SET);
-		int enc_read = fread(enc_buf,1,NAND_SECTOR_SIZE,state[index].fp);
+		unsigned long long sector = ( read_offset / NAND_SECTOR_SIZE);
+		tweakHI = (sector >> 63) & 0xFFFFFFFFFFFFFFFF;
+		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
+		
+		memset(enc_buf, 0, read_size);
+		if( read_size > size-read )
+			read_size = (size - read);
+		
+		//read in blocks of 0x400 bytes
+		//should be relatively fast to read & decrypt
+		fseek(state[index].fp, read_offset, SEEK_SET);
+		int enc_read = fread(enc_buf,1,read_size,state[index].fp);
 		if(enc_read <= 0)
 		{
             printf("pread returned %d!\n\r",enc_read);
 			free(enc_buf);
 			return -EFAULT;
 		}
-		
-		//decrypt data!
-		tweakHI = (sector >> 63) & 0xFFFFFFFFFFFFFFFF;
-		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
-		//void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size)
+
+		//void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
 		aes_xtsn_decrypt(enc_buf,
-						 NAND_SECTOR_SIZE,
+						 enc_read,
 						 state[index].crypt_key,
 						 state[index].tweak_key,
 						 tweakHI,
 						 tweakLO,
-						 NAND_SECTOR_SIZE);
-		
+						 NAND_SECTOR_SIZE,
+						 decrypt_offset);
+						 
 		//copy the decrypted data to the buffer!
-		int toCopySize = (size-read>NAND_SECTOR_SIZE-sector_offset)?NAND_SECTOR_SIZE-sector_offset:size-read;
-		memcpy(buf+read,enc_buf+sector_offset,toCopySize);
+		int toCopySize = (size-read > enc_read-read_skip)? enc_read-read_skip : size-read;
+		memcpy(buf+read,enc_buf+read_skip,toCopySize);
 		read += toCopySize;
 		
-		//setup for next decrypt
-		enc_offset += NAND_SECTOR_SIZE;	
-		sector++;
-		sector_offset = 0;
+		//setup for next decrypt	
+		read_offset += toCopySize;
+		decrypt_offset += toCopySize;
+		if (decrypt_offset >= NAND_SECTOR_SIZE)
+			decrypt_offset = 0;
+		read_skip = 0;
     }
 
 	if(read != size)
