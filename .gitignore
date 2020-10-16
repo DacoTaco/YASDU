@@ -5,6 +5,11 @@ __pycache__/
 
 # C extensions
 *.so
+*.o
+
+#Compiled files
+*.exe
+*.bin
 
 # Distribution / packaging
 .Python
@@ -137,3 +142,4 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+**/biskeydump.txt
