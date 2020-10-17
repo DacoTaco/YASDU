@@ -53,26 +53,26 @@ inline static void shift128(u8 *foo) {
     }
 }
 
-void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
+void aes_xtsn_process(u8 direction, u8* buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
 {
 	if(len == 0)
 		return;
 	if(sectoroffset > sector_size)
 		sectoroffset = 0;
-
-	u64 i;	
-	struct AES_ctx _key, _tweak;
-	AES_init_ctx(&_key, key);
-	AES_init_ctx(&_tweak, tweakin);
-	u64 position[2] = {sectoroffsethi, sectoroffsetlo};
+	
+    u64 i;	
+    struct AES_ctx _key, _tweak;
+    AES_init_ctx(&_key, key);
+    AES_init_ctx(&_tweak, tweakin);
+    u64 position[2] = {sectoroffsethi, sectoroffsetlo};
 	u64 sectorsToRead = (len < sector_size) ? 1 : (len / (u64)sector_size);
-
-	for (i = 0; i < sectorsToRead; i++) 
+	
+    for (i = 0; i < sectorsToRead; i++) 
 	{
-		if (position[1] > (position[1] + 1LLU)) 
+        if (position[1] > (position[1] + 1LLU)) 
 			position[0] += 1LLU; //if overflow, we gotta
-		union bigint128 tweak = geniv(position[0], position[1]);
-		AES_ECB_encrypt(&_tweak, tweak.value8);
+        union bigint128 tweak = geniv(position[0], position[1]);
+        AES_ECB_encrypt(&_tweak, tweak.value8);
 		u64 j = 0;
 		
 		while( ( j < len / 0x10))// && ( j < sector_size / 0x10 ) )
@@ -80,28 +80,29 @@ void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffse
 			//decrypt if we aren't at a skipped block
 			if(sectoroffset/0x10 > j)
 			{
-				//printf("skip!\r\n");
 				if(sectoroffset > 0x10)
 					sectoroffset -= 0x10;
 				else
 					sectoroffset = 0;
 			}
-			else //decrypt !
+			else //encrypt or decrypt !
 			{
-				//printf("decrypt!\r\n");
 				xor128(buffer, tweak.value8);
-				AES_ECB_decrypt(&_key, buffer);
+				if(direction)
+					AES_ECB_encrypt(&_key, buffer);
+				else
+					AES_ECB_decrypt(&_key, buffer);
 				xor128(buffer, tweak.value8);
 				buffer += 0x10;			
 				j++;
 			}				
-
+			
 			//set the tweak value for the next 0x10 block
 			bool flag = tweak.value8[15] & 0x80;
-			shift128(tweak.value8);
-			if (flag) 
+            shift128(tweak.value8);
+            if (flag) 
 				tweak.value8[0] ^= 0x87;
-
+			
 			//end of a sector. this can only work if we decrypted from address 0 of a sector though
 			//kinda unreliable , so commented
 			/*if(j > 0 && j%(sector_size / 0x10) == 0)
@@ -110,6 +111,16 @@ void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffse
 				break;
 			}*/
 		}
-		position[1] += 1LLU;
-	}
+        position[1] += 1LLU;
+    }
+}
+
+void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
+{
+	return aes_xtsn_process(0,buffer,len,key,tweakin,sectoroffsethi,sectoroffsetlo,sector_size,sectoroffset);
+}
+
+void aes_xtsn_encrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
+{
+	return aes_xtsn_process(1,buffer,len,key,tweakin,sectoroffsethi,sectoroffsetlo,sector_size,sectoroffset);
 }
