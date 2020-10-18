@@ -31,6 +31,9 @@
 #include "aes.h"
 #include "ccrypto.c"
 
+const int read_size = 0x400; //NAND_SECTOR_SIZE
+const int write_size = 0x10;
+
 int nand_getfileindex(const char *path)
 {
 	for(int i = 0;i < PARTITION_COUNT;i++)
@@ -240,8 +243,8 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		size = state[index].partition_size - offset;
 	}
 
-	int read_size = 0x10; //NAND_SECTOR_SIZE
-	unsigned char* enc_buf = (unsigned char*)malloc(read_size);
+	int block_size = read_size;
+	unsigned char* enc_buf = (unsigned char*)malloc(block_size);
 	if(enc_buf == NULL)
 		return -ENOMEM;
 
@@ -257,14 +260,14 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		tweakHI = (sector >> 63) & 0xFFFFFFFFFFFFFFFF;
 		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
 
-		memset(enc_buf, 0, read_size);
-		if( read_size > size-read )
-			read_size = (size - read);
+		memset(enc_buf, 0, block_size);
+		if( block_size > size-read )
+			block_size = (size - read);
 
 		//read in blocks of 0x400 bytes
 		//should be relatively fast to read & decrypt
 		fseek(state[index].fp, decrypt_offset, SEEK_SET);
-		int enc_read = fread(enc_buf,1,read_size,state[index].fp);
+		int enc_read = fread(enc_buf,1,block_size,state[index].fp);
 		if(enc_read <= 0)
 		{
 			printf("pread returned %d!\n\r",enc_read);
@@ -319,7 +322,6 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		return -EINVAL;
 
 	printf("write %s: 0x%lx -> 0x%lx\n\r", path, offset, offset+size);
-	int write_size = 0x10; //NAND_SECTOR_SIZE	
 	int written = 0;	
 	unsigned char* write_buf = (unsigned char*)malloc(write_size);
 	if(write_buf == NULL)

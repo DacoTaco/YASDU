@@ -28,9 +28,9 @@
 #include <pthread.h>
 #include "driver.h"
 
-char *DEVICE_NAME[] = {"/p1_PRODINFO","/p2_PRODINFOF",
-					   "/p9_SAFE","/p10_SYSTEM",
-					   "/p11_USER","/BUFF_OVERFLOW_DETECTED"};
+char *DEVICE_NAME[] = {"/PRODINFO","/PRODINFOF",
+					   "/SAFE","/SYSTEM",
+					   "/USER","/BUFF_OVERFLOW_DETECTED"};
 
 //we should read these from the GPT but... eh
 size_t sizes[]		= { 0x003FBC00,0x00400000,
@@ -164,27 +164,27 @@ int main(int argc, char *argv[])
 			printf("failed to alloc memory for path\n\r");
 			return -ENOMEM;
 		}
-		char part = 0;
-		switch(i)
-		{
-			case 0:
-			case 1:
-				part = i+1;
-				break;
-			case 2:
-			case 3:
-			case 4:
-				part = i+7;
-				break;
-		}
-
+		
 		// p1,p2,p9,p10,p11
 		if(local_files == 1)
 		{
-			snprintf(path,32,"./mmcblk1p%d.bin",part);
+			snprintf(path,32,".%s",DEVICE_NAME[i]);
 		}
 		else
 		{
+			char part = 0;
+			switch(i)
+			{
+				case 0:
+				case 1:
+					part = i+1;
+					break;
+				case 2:
+				case 3:
+				case 4:
+					part = i+7;
+					break;
+			}
 			snprintf(path,32,"/dev/mmcblk1p%d",part);
 		}
 
