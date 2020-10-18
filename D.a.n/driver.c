@@ -131,7 +131,7 @@ int nand_open(const char *path, struct fuse_file_info *fi)
     }
 	
 	//state[i].fp = open(state[i].file_path,O_RDWR);
-	state[i].fp = fopen(state[i].file_path,"rb");
+	state[i].fp = fopen(state[i].file_path,"rb+");
 	
     return 0;
 }
@@ -229,6 +229,11 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 	{
         return -ENOENT;
     }
+	
+	if(size <= 0)
+	{
+		return -EINVAL;
+	}
 
     //DONT READ TO MUCH Y0
     if (size + offset > state[index].partition_size) 
@@ -236,20 +241,20 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
         size = state[index].partition_size - offset;
     }
 
-	int read_size = 0x400; //NAND_SECTOR_SIZE
+	int read_size = 0x10; //NAND_SECTOR_SIZE
 	unsigned char* enc_buf = (unsigned char*)malloc(read_size);
 	if(enc_buf == NULL)
 		return -ENOMEM;
 	
-	printf("request : 0x%lx -> 0x%lx\n\r",offset,offset+size);
+	printf("read %s : 0x%lx -> 0x%lx\n\r",path, offset, offset+size);
 	int read = 0;
-	unsigned long long read_offset = offset - (offset % 0x10);
-	unsigned long long decrypt_offset = offset % NAND_SECTOR_SIZE;
+	unsigned long long decrypt_offset = offset - (offset % 0x10);
+	unsigned long long sector_offset = offset % NAND_SECTOR_SIZE;
 	unsigned long long read_skip = offset % 0x10;
 	unsigned long long tweakHI,tweakLO = 0;	
     while (read < size)
 	{	
-		unsigned long long sector = ( read_offset / NAND_SECTOR_SIZE);
+		unsigned long long sector = ( decrypt_offset / NAND_SECTOR_SIZE);
 		tweakHI = (sector >> 63) & 0xFFFFFFFFFFFFFFFF;
 		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
 		
@@ -259,7 +264,7 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		
 		//read in blocks of 0x400 bytes
 		//should be relatively fast to read & decrypt
-		fseek(state[index].fp, read_offset, SEEK_SET);
+		fseek(state[index].fp, decrypt_offset, SEEK_SET);
 		int enc_read = fread(enc_buf,1,read_size,state[index].fp);
 		if(enc_read <= 0)
 		{
@@ -276,7 +281,7 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 						 tweakHI,
 						 tweakLO,
 						 NAND_SECTOR_SIZE,
-						 decrypt_offset);
+						 sector_offset);
 						 
 		//copy the decrypted data to the buffer!
 		int toCopySize = (size-read > enc_read-read_skip)? enc_read-read_skip : size-read;
@@ -284,10 +289,10 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		read += toCopySize;
 		
 		//setup for next decrypt	
-		read_offset += toCopySize;
-		decrypt_offset += toCopySize;
-		if (decrypt_offset >= NAND_SECTOR_SIZE)
-			decrypt_offset = 0;
+		decrypt_offset += enc_read;
+		sector_offset += toCopySize;
+		if (sector_offset >= NAND_SECTOR_SIZE)
+			sector_offset = sector_offset % NAND_SECTOR_SIZE;
 		read_skip = 0;
     }
 
@@ -304,7 +309,6 @@ int nand_read_compat(const char *path, char *buf,size_t size,off_t offset)
 
 int nand_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) 
 {
-	
 	//check if we actually have this file
     int index = nand_getfileindex(path);
     if (index < 0) 
@@ -312,11 +316,68 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		printf("file not found!\n\r");
         return -ENOENT;
     }
+	if(size <= 0)
+		return -EINVAL;
 	
-	//we dont support writing just yet, so lets do nothing :)
-	printf("WRITE NOT YET IMPLEMENTED\n\r");
+	printf("write %s: 0x%lx -> 0x%lx\n\r", path, offset, offset+size);
+	int write_size = 0x10; //NAND_SECTOR_SIZE	
+	int written = 0;	
+	unsigned char* write_buf = (unsigned char*)malloc(write_size);
+	if(write_buf == NULL)
+		return -ENOMEM;
 	
-	return size;
+	unsigned long long decrypt_offset = offset - (offset % 0x10);
+	unsigned long long sector_offset = offset % NAND_SECTOR_SIZE;
+	unsigned long long write_skip = offset % 0x10;
+	unsigned long long tweakHI,tweakLO = 0;	
+
+	while (written < size)
+	{	
+		memset(write_buf, 0, write_size);
+		unsigned long long sector = ( decrypt_offset / NAND_SECTOR_SIZE);
+		tweakHI = (sector >> 63) & 0xFFFFFFFFFFFFFFFF;
+		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
+		
+		//read decrypted data
+		int dec_read = nand_read(path, write_buf, write_size, decrypt_offset, fi);
+		if ( dec_read != write_size)
+		{
+			printf("nand_read returned %d!\n\r", dec_read);
+			free(write_buf);
+			return -EFAULT;
+		}
+
+		//write data to buf
+		int toCopySize = (size-written > dec_read-write_skip)? dec_read-write_skip : size-written;
+		memcpy(write_buf+write_skip,buf+written,toCopySize);
+		written += toCopySize;
+		
+		//encrypt & write data back to NAND		
+		//void aes_xtsn_encrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
+		aes_xtsn_encrypt(	write_buf, 
+							write_size,
+							state[index].crypt_key,
+							state[index].tweak_key,
+							tweakHI,
+							tweakLO,
+							NAND_SECTOR_SIZE,
+							sector_offset);
+		fseek(state[index].fp, decrypt_offset, SEEK_SET);
+		fwrite(write_buf, 1, write_size, state[index].fp);		
+		
+		//setup for next write	
+		decrypt_offset += write_size;
+		sector_offset += toCopySize;
+		if (sector_offset >= NAND_SECTOR_SIZE)
+			sector_offset = sector_offset % NAND_SECTOR_SIZE;
+		write_skip = 0;		
+	}	
+	
+	
+	if(written != size)
+		printf("!!!!!WARNING!!!!!! WRITE : %d , ASKED SIZE : %ld\n\r", written, size);
+	
+	return written;
 }
 
 int nand_write_compat(const char *path, const char *buf,size_t size,off_t offset)
