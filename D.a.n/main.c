@@ -40,7 +40,7 @@ size_t sizes[]		= { 0x003FBC00,0x00400000,
 char file_exists(const char* filename)
 {
 	FILE* fp = fopen(filename,"r");
-	
+
 	if(fp)
 	{
 		fclose(fp);
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 	char* fuse_argv[argc];
 	int fuse_argc = 0;
 	char local_files = 0;
-	
+
 	for(int i = 0;i < argc;i++)
 	{
 		if(strncmp(argv[i],"-l",2) == 0)
@@ -67,19 +67,17 @@ int main(int argc, char *argv[])
 			fuse_argv[fuse_argc] = argv[i];
 			fuse_argc++;
 		}
-		
+
 	}
-	
-	
+
 	//first load in the keys
 	FILE* fp = fopen("biskeydump.txt","r");
-	
 	if(fp == NULL)
 	{
 		printf("unable to open the biskey dump file!\n\r");
 		return -EFAULT;
 	}
-	
+
 	char* line;
 	size_t len = 0;
 	int key_nr = 0;
@@ -87,10 +85,10 @@ int main(int argc, char *argv[])
 	{
 		char crypt[33];
 		char tweak[33];
-		
+
 		crypt[32] = 0;
 		tweak[32] = 0;
-		
+
 		//printf("%s\n",line);
 		if(strncmp(line,"BIS KEY ",8) == 0)
 		{
@@ -100,7 +98,7 @@ int main(int argc, char *argv[])
 				split = split+10-i;
 				strncpy(crypt,split,32);
 			}
-			
+
 			if(getline(&line,&len,fp) >= 0)
 			{
 				char* split = line;
@@ -110,10 +108,10 @@ int main(int argc, char *argv[])
 					strncpy(tweak,split,32);
 				}
 			}
-			
+
 			printf("crypt(%d) : %s\n\r",key_nr,crypt);
 			printf("tweak(%d) : %s\n\r",key_nr,tweak);
-			
+
 			//convert keys
 			for(unsigned int y = 0;y*2 < strlen(crypt);y++)
 			{
@@ -125,7 +123,7 @@ int main(int argc, char *argv[])
 				memcpy(number,tweak+(y*2),2);
 				state[key_nr].tweak_key[y] = (unsigned char)strtol(number,NULL,16);
 			}
-			
+
 			//the same key gets used for the first 2 partitions. hence a memcpy
 			if(key_nr == 0)
 			{
@@ -134,32 +132,32 @@ int main(int argc, char *argv[])
 				key_nr++;
 			}
 			key_nr++;
-			
+
 			//we read all keys
 			if(key_nr >= PARTITION_COUNT)
-				break;
+			break;
 		}
 	}
-	fclose(fp);
 	
+	fclose(fp);
 	if(key_nr < 3)
 	{
 		printf("did not get all keys!");
 		return -EFAULT;
 	}
-	
-	
+
 	//set up device & look for files...
 	printf("searching partitions...\n\r");
 	if(local_files > 0)
 	{
 		printf("using local files...\n");	
 	}
+	
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
 		state[i].name = DEVICE_NAME[i];
 		state[i].partition_size = sizes[i];
-		
+
 		char *path = malloc(32);
 		if(path == NULL)
 		{
@@ -179,8 +177,7 @@ int main(int argc, char *argv[])
 				part = i+7;
 				break;
 		}
-		
-		
+
 		// p1,p2,p9,p10,p11
 		if(local_files == 1)
 		{
@@ -190,8 +187,8 @@ int main(int argc, char *argv[])
 		{
 			snprintf(path,32,"/dev/mmcblk1p%d",part);
 		}
-		
-        printf("searching for %s...\n\r",path);
+
+		printf("searching for %s...\n\r",path);
 		if(file_exists(path))
 		{
 			printf("%s added as -> %s \n\r",path,DEVICE_NAME[i]);
@@ -205,14 +202,13 @@ int main(int argc, char *argv[])
 		//init lock
 		pthread_mutex_init(&state[i].lock, NULL);
 	}
-	
+
 	//and setup fuse device :')
 	printf("LEGGO\n\r");
-	
+
 #if FUSE_USE_VERSION < 26
 	return fuse_main(fuse_argc, fuse_argv, &nand_oper);
 #else
 	return fuse_main(fuse_argc, fuse_argv, &nand_oper,&state);
 #endif
-	
 }
