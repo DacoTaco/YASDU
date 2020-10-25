@@ -23,36 +23,36 @@
 
 #ifndef _DRIVER_H_
 
+#define _DRIVER_H_
 #define FUSE_USE_VERSION 26
 #define _FILE_OFFSET_BITS 64
-#define _DRIVER_H_
+#define KEY_SIZE 32
 
 #include <fuse.h>
 
-#define KEY_SIZE 32
-//there are 5 encrypted partitions on the nand
-#define PARTITION_COUNT 5
-#define NAND_SECTOR_SIZE 0x4000
-
-struct partitionInfo{
+typedef struct {
 	char* name;
 	size_t partition_size;
 	size_t partition_offset;
-};
+	unsigned char tweak_key[KEY_SIZE];
+	unsigned char crypt_key[KEY_SIZE];
+} partitionInfo;
 
-struct partition_state {
-	struct partitionInfo partition;
+typedef struct {
+	partitionInfo* partition;
 	char *file_path;
 	FILE* fp;
 	char report;
-	unsigned char tweak_key[KEY_SIZE];
-	unsigned char crypt_key[KEY_SIZE];
 	pthread_mutex_t lock;
-};
+} partition_state;
 
-//compatability stuff
-//replace with array of states
-struct partition_state state[PARTITION_COUNT];
+//there are 5 encrypted partitions on the nand
+#define PARTITION_COUNT 5
+#define NAND_SECTOR_SIZE 0x4000
+#define RAW_USERPARTITION_BASE 0x01800000
+extern partitionInfo UserPartitions[PARTITION_COUNT];
+extern partition_state state[PARTITION_COUNT];
+extern struct fuse_operations nand_oper;
 
 int nand_getattr(const char *path, struct stat *stbuf);
 
@@ -74,29 +74,5 @@ int nand_read_compat(const char *path, char *buf,size_t size,off_t offset);
 
 int nand_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int nand_write_compat(const char *path, const char *buf,size_t size,off_t offset);
-
-
-static struct fuse_operations nand_oper = {
-	.getattr	= nand_getattr,
-#if FUSE_USE_VERSION < 26
-	.getdir		= nand_getdir,
-	.open		= nand_open_compat,
-	.read		= nand_read_compat,
-	.write		= nand_write_compat,
-	.release	= nand_release_compat,
-	.setxattr	= nand_setxattr,
-	.getxattr	= nand_getxattr
-#else
-	//.setattr	= nand_setattr,
-	.readdir	= nand_readdir,
-	.open		= nand_open,
-	.read		= nand_read,
-	.write		= nand_write,
-	.release	= nand_release
-#endif
-};
-
-
-
 
 #endif

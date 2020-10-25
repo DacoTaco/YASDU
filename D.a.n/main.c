@@ -28,16 +28,6 @@
 #include <pthread.h>
 #include "driver.h"
 
-char *DEVICE_NAME[] = {"/PRODINFO","/PRODINFOF",
-					   "/SAFE","/SYSTEM",
-					   "/USER","/BUFF_OVERFLOW_DETECTED"};
-
-//we should read these from the GPT but... eh
-//same with that the user partition starts at 0x01800000
-size_t sizes[]		= { 0x003FBC00,0x00400000,
-					    0x04000000,0xA0000000,
-					    0x680000000 };
-
 char file_exists(const char* filename)
 {
 	FILE* fp = fopen(filename,"r");
@@ -118,18 +108,23 @@ int main(int argc, char *argv[])
 			{
 				char number[3] = { 0 };
 				memcpy(number,crypt+(y*2),2);
-				state[key_nr].crypt_key[y] = (unsigned char)strtol(number,NULL,16);
+				UserPartitions[key_nr].crypt_key[y] = (unsigned char)strtol(number,NULL,16);
 
 				memset(number,0,3);
 				memcpy(number,tweak+(y*2),2);
-				state[key_nr].tweak_key[y] = (unsigned char)strtol(number,NULL,16);
+				UserPartitions[key_nr].tweak_key[y] = (unsigned char)strtol(number,NULL,16);
 			}
 
 			//the same key gets used for the first 2 partitions. hence a memcpy
 			if(key_nr == 0)
 			{
-				memcpy(state[key_nr+1].crypt_key,state[key_nr].crypt_key,KEY_SIZE);
-				memcpy(state[key_nr+1].tweak_key,state[key_nr].tweak_key,KEY_SIZE);
+				memcpy(UserPartitions[key_nr+1].crypt_key,
+					   UserPartitions[key_nr].crypt_key,
+					   KEY_SIZE);
+				
+				memcpy(UserPartitions[key_nr+1].tweak_key,
+					   UserPartitions[key_nr].tweak_key,
+					   KEY_SIZE);
 				key_nr++;
 			}
 			key_nr++;
@@ -156,8 +151,7 @@ int main(int argc, char *argv[])
 	
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		state[i].partition.name = DEVICE_NAME[i];
-		state[i].partition.partition_size = sizes[i];
+		state[i].partition = &UserPartitions[i];
 
 		char *path = malloc(32);
 		if(path == NULL)
@@ -169,7 +163,7 @@ int main(int argc, char *argv[])
 		// p1,p2,p9,p10,p11
 		if(local_files == 1)
 		{
-			snprintf(path,32,".%s",DEVICE_NAME[i]);
+			snprintf(path,32,"./%s",state[i].partition->name);
 		}
 		else
 		{
@@ -192,7 +186,7 @@ int main(int argc, char *argv[])
 		printf("searching for %s...\n\r",path);
 		if(file_exists(path))
 		{
-			printf("%s added as -> %s \n\r",path,DEVICE_NAME[i]);
+			printf("%s added as -> %s \n\r", path, state[i].partition->name);
 			state[i].file_path = path;
 			state[i].report = 1;
 		}

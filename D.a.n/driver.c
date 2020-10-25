@@ -31,19 +31,56 @@
 #include "aes.h"
 #include "ccrypto.c"
 
+#define PRODINFO	(partitionInfo){"PRODINFO", 0x003FBC00, 0x00004400, {}, {}}
+#define PRODINFOF	(partitionInfo){"PRODINFOF", 0x00400000, 0x00400000, {}, {}}
+#define SAFE		(partitionInfo){"SAFE", 0x04000000, 0x03800000, {}, {}}
+#define SYSTEM	 	(partitionInfo){"SYSTEM", 0xA0000000, 0x07800000, {}, {}}
+#define USER		(partitionInfo){"USER", 0xA7800000, 0x680000000, {}, {}}
+partitionInfo UserPartitions[PARTITION_COUNT] = {PRODINFO, PRODINFOF, SAFE, SYSTEM, USER};
+partition_state state[PARTITION_COUNT];
+struct fuse_operations nand_oper = {
+	.getattr	= nand_getattr,
+#if FUSE_USE_VERSION < 26
+	.getdir		= nand_getdir,
+	.open		= nand_open_compat,
+	.read		= nand_read_compat,
+	.write		= nand_write_compat,
+	.release	= nand_release_compat,
+	.setxattr	= nand_setxattr,
+	.getxattr	= nand_getxattr
+#else
+	//.setattr	= nand_setattr,
+	.readdir	= nand_readdir,
+	.open		= nand_open,
+	.read		= nand_read,
+	.write		= nand_write,
+	.release	= nand_release
+#endif
+};
 const int read_size = 0x400; //NAND_SECTOR_SIZE
 const int write_size = 0x10;
 
 int nand_getfileindex(const char *path)
 {
+	if(path == NULL)
+		return -1;
+	
+	if(path[0] == '/')
+		path++;
+	
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		if (strcmp(path, state[i].partition.name) == 0) 
+		if(state[i].partition == NULL || 
+		   state[i].partition->name == NULL ||
+		   state[i].report == 0 )
+			continue;
+		
+		if (strcmp(path, state[i].partition->name) == 0) 
 		{	
 			return i;
 		} 
 	}	
-	return -1;
+	return -2;
 }
 
 int nand_getattr(const char *path, struct stat *stbuf) 
@@ -66,7 +103,7 @@ int nand_getattr(const char *path, struct stat *stbuf)
 	else
 	{
 		int i = nand_getfileindex(path);
-		if(i >= 0 && state[i].report == 1)
+		if(i >= 0 )
 		{
 			// the exposed files!
 			stbuf->st_mode = S_IFREG | S_IRWXU | S_IRWXG | S_IRWXO;
@@ -74,7 +111,7 @@ int nand_getattr(const char *path, struct stat *stbuf)
 			stbuf->st_uid = getuid();
 			stbuf->st_gid = getgid();
 			stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL);
-			stbuf->st_size = state[i].partition.partition_size;
+			stbuf->st_size = state[i].partition->partition_size;
 		}
 		else
 		{
@@ -90,7 +127,8 @@ int nand_getxattr(const char* path,const char* attrib_name,char* buf, size_t siz
 {
 	printf("getxattr of %s requested\n\r",path);
 	// can only open exposed file
-	if (strcmp(path, state[0].partition.name) != 0) 
+	int i = nand_getfileindex(path);
+	if (i < 0 || strcmp(path, state[i].partition->name) != 0) 
 	{
 		return -ENOENT;
 	}	
@@ -105,8 +143,9 @@ int nand_getxattr(const char* path,const char* attrib_name,char* buf, size_t siz
 int nand_setxattr(const char* path,const char* attrib_name,const char *value, size_t size, int flags)
 {
 	printf("setxattr of %s requested\n\r",path);
-
-	if (strcmp(path, state[0].partition.name) != 0) 
+	int i = nand_getfileindex(path);
+	
+	if (i < 0 || strcmp(path, state[i].partition->name) != 0) 
 	{
 		return -ENOENT;
 	}	
@@ -188,9 +227,9 @@ int nand_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
 	filler(buf,"..",NULL,0);
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		if (state[i].report == 1)
+		if (state[i].report == 1 && state[i].partition != NULL)
 		{
-			filler(buf,state[i].partition.name+1,NULL,0);
+			filler(buf,state[i].partition->name,NULL,0);
 		}
 	}
 
@@ -213,9 +252,9 @@ int nand_getdir(const char *path,fuse_dirh_t hd,fuse_dirfil_t filler)
 	int i = nand_getfileindex(path);
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		if (state[i].report == 1)
+		if (state[i].report == 1 && state[i].partition != NULL)
 		{
-			filler(buf,state[i].partition.name+1,0);
+			filler(buf,state[i].partition.name,0);
 		}
 	}
 #endif
@@ -238,9 +277,9 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 	}
 
 	//DONT READ TO MUCH Y0
-	if (size + offset > state[index].partition.partition_size) 
+	if (size + offset > state[index].partition->partition_size) 
 	{
-		size = state[index].partition.partition_size - offset;
+		size = state[index].partition->partition_size - offset;
 	}
 
 	int block_size = read_size;
@@ -278,8 +317,8 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		//void aes_xtsn_decrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
 		aes_xtsn_decrypt(	enc_buf,
 							enc_read,
-							state[index].crypt_key,
-							state[index].tweak_key,
+							state[index].partition->crypt_key,
+							state[index].partition->tweak_key,
 							tweakHI,
 							tweakLO,
 							NAND_SECTOR_SIZE,
@@ -318,6 +357,11 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		printf("file not found!\n\r");
 		return -ENOENT;
 	}
+	
+	//DONT READ TO MUCH Y0
+	if (size + offset > state[index].partition->partition_size) 
+		size = state[index].partition->partition_size - offset;
+	
 	if(size <= 0)
 		return -EINVAL;
 
@@ -357,8 +401,8 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		//void aes_xtsn_encrypt(u8 *buffer, u64 len, u8 *key, u8 *tweakin, u64 sectoroffsethi, u64 sectoroffsetlo, u32 sector_size, u64 sectoroffset) 
 		aes_xtsn_encrypt(	write_buf, 
 							write_size,
-							state[index].crypt_key,
-							state[index].tweak_key,
+							state[index].partition->crypt_key,
+							state[index].partition->tweak_key,
 							tweakHI,
 							tweakLO,
 							NAND_SECTOR_SIZE,
