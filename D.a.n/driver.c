@@ -38,7 +38,7 @@ int nand_getfileindex(const char *path)
 {
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		if (strcmp(path, state[i].name) == 0) 
+		if (strcmp(path, state[i].partition.name) == 0) 
 		{	
 			return i;
 		} 
@@ -74,7 +74,7 @@ int nand_getattr(const char *path, struct stat *stbuf)
 			stbuf->st_uid = getuid();
 			stbuf->st_gid = getgid();
 			stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL);
-			stbuf->st_size = state[i].partition_size;
+			stbuf->st_size = state[i].partition.partition_size;
 		}
 		else
 		{
@@ -90,7 +90,7 @@ int nand_getxattr(const char* path,const char* attrib_name,char* buf, size_t siz
 {
 	printf("getxattr of %s requested\n\r",path);
 	// can only open exposed file
-	if (strcmp(path, state[0].name) != 0) 
+	if (strcmp(path, state[0].partition.name) != 0) 
 	{
 		return -ENOENT;
 	}	
@@ -106,7 +106,7 @@ int nand_setxattr(const char* path,const char* attrib_name,const char *value, si
 {
 	printf("setxattr of %s requested\n\r",path);
 
-	if (strcmp(path, state[0].name) != 0) 
+	if (strcmp(path, state[0].partition.name) != 0) 
 	{
 		return -ENOENT;
 	}	
@@ -190,7 +190,7 @@ int nand_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
 	{
 		if (state[i].report == 1)
 		{
-			filler(buf,state[i].name+1,NULL,0);
+			filler(buf,state[i].partition.name+1,NULL,0);
 		}
 	}
 
@@ -215,7 +215,7 @@ int nand_getdir(const char *path,fuse_dirh_t hd,fuse_dirfil_t filler)
 	{
 		if (state[i].report == 1)
 		{
-			filler(buf,state[i].name+1,0);
+			filler(buf,state[i].partition.name+1,0);
 		}
 	}
 #endif
@@ -238,9 +238,9 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 	}
 
 	//DONT READ TO MUCH Y0
-	if (size + offset > state[index].partition_size) 
+	if (size + offset > state[index].partition.partition_size) 
 	{
-		size = state[index].partition_size - offset;
+		size = state[index].partition.partition_size - offset;
 	}
 
 	int block_size = read_size;
@@ -340,7 +340,7 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		tweakLO = sector & 0xFFFFFFFFFFFFFFFF;
 
 		//read decrypted data
-		int dec_read = nand_read(path, write_buf, write_size, decrypt_offset, fi);
+		int dec_read = nand_read(path, (char*)write_buf, write_size, decrypt_offset, fi);
 		if ( dec_read != write_size)
 		{
 			printf("nand_read returned %d!\n\r", dec_read);
@@ -371,7 +371,7 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		sector_offset += toCopySize;
 		if (sector_offset >= NAND_SECTOR_SIZE)
 			sector_offset = sector_offset % NAND_SECTOR_SIZE;
-			write_skip = 0;		
+		write_skip = 0;		
 	}	
 
 	if(written != size)

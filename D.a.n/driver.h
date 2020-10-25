@@ -32,14 +32,17 @@
 #define KEY_SIZE 32
 //there are 5 encrypted partitions on the nand
 #define PARTITION_COUNT 5
-#define PARTITION_SIZE 0x00400000
 #define NAND_SECTOR_SIZE 0x4000
-#define NAND_SECTOR_COUNT (PARTITION_SIZE / NAND_SECTOR_SIZE)
+
+struct partitionInfo{
+	char* name;
+	size_t partition_size;
+	size_t partition_offset;
+};
 
 struct partition_state {
-	char *name;
+	struct partitionInfo partition;
 	char *file_path;
-	size_t partition_size;
 	FILE* fp;
 	char report;
 	unsigned char tweak_key[KEY_SIZE];

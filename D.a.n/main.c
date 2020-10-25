@@ -33,6 +33,7 @@ char *DEVICE_NAME[] = {"/PRODINFO","/PRODINFOF",
 					   "/USER","/BUFF_OVERFLOW_DETECTED"};
 
 //we should read these from the GPT but... eh
+//same with that the user partition starts at 0x01800000
 size_t sizes[]		= { 0x003FBC00,0x00400000,
 					    0x04000000,0xA0000000,
 					    0x680000000 };
@@ -155,8 +156,8 @@ int main(int argc, char *argv[])
 	
 	for(int i = 0;i < PARTITION_COUNT;i++)
 	{
-		state[i].name = DEVICE_NAME[i];
-		state[i].partition_size = sizes[i];
+		state[i].partition.name = DEVICE_NAME[i];
+		state[i].partition.partition_size = sizes[i];
 
 		char *path = malloc(32);
 		if(path == NULL)
@@ -198,7 +199,9 @@ int main(int argc, char *argv[])
 		else
 		{
 			state[i].report = 0;	
+			free(path);
 		}
+		
 		//init lock
 		pthread_mutex_init(&state[i].lock, NULL);
 	}
