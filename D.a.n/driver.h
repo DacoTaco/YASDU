@@ -32,8 +32,10 @@
 
 typedef struct {
 	char* name;
-	size_t partition_size;
+	char* switch_name;
 	size_t partition_offset;
+	size_t partition_size;
+	char encrypted;
 	unsigned char tweak_key[KEY_SIZE];
 	unsigned char crypt_key[KEY_SIZE];
 } partitionInfo;
@@ -46,7 +48,13 @@ typedef struct {
 	pthread_mutex_t lock;
 } partition_state;
 
-//there are 5 encrypted partitions on the nand
+//there are 5 encrypted user partitions on the nand
+#define NAND		(partitionInfo){"NAND", "mmcblk1p666", 0x00000000, 0xFFFFFFFFFFFF, 0, {}, {}}
+#define PRODINFO	(partitionInfo){"PRODINFO", "mmcblk1p1", 0x00004400, 0x003FBC00, 1, {}, {}}
+#define PRODINFOF	(partitionInfo){"PRODINFOF", "mmcblk1p2", 0x00400000, 0x00400000, 1, {}, {}}
+#define SAFE		(partitionInfo){"SAFE", "mmcblk1p9", 0x03800000, 0x04000000, {}, 1, {}}
+#define SYSTEM	 	(partitionInfo){"SYSTEM", "mmcblk1p10", 0x07800000, 0xA0000000, 1, {}, {}}
+#define USER		(partitionInfo){"USER", "mmcblk1p11", 0xA7800000, 0x680000000, 1, {}, {}}
 #define PARTITION_COUNT 5
 #define NAND_SECTOR_SIZE 0x4000
 #define RAW_USERPARTITION_BASE 0x01800000

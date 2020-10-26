@@ -167,20 +167,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			char part = 0;
-			switch(i)
-			{
-				case 0:
-				case 1:
-					part = i+1;
-					break;
-				case 2:
-				case 3:
-				case 4:
-					part = i+7;
-					break;
-			}
-			snprintf(path,32,"/dev/mmcblk1p%d",part);
+			snprintf(path,32,"/dev/%s",state[i].partition->switch_name);
 		}
 
 		printf("searching for %s...\n\r",path);

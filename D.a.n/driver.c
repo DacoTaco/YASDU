@@ -31,11 +31,6 @@
 #include "aes.h"
 #include "ccrypto.c"
 
-#define PRODINFO	(partitionInfo){"PRODINFO", 0x003FBC00, 0x00004400, {}, {}}
-#define PRODINFOF	(partitionInfo){"PRODINFOF", 0x00400000, 0x00400000, {}, {}}
-#define SAFE		(partitionInfo){"SAFE", 0x04000000, 0x03800000, {}, {}}
-#define SYSTEM	 	(partitionInfo){"SYSTEM", 0xA0000000, 0x07800000, {}, {}}
-#define USER		(partitionInfo){"USER", 0xA7800000, 0x680000000, {}, {}}
 partitionInfo UserPartitions[PARTITION_COUNT] = {PRODINFO, PRODINFOF, SAFE, SYSTEM, USER};
 partition_state state[PARTITION_COUNT];
 struct fuse_operations nand_oper = {
@@ -271,15 +266,15 @@ int nand_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 		return -ENOENT;
 	}
 
-	if(size <= 0)
-	{
-		return -EINVAL;
-	}
-
 	//DONT READ TO MUCH Y0
 	if (size + offset > state[index].partition->partition_size) 
 	{
 		size = state[index].partition->partition_size - offset;
+	}
+	
+	if(size <= 0)
+	{
+		return -EINVAL;
 	}
 
 	int block_size = read_size;
@@ -358,7 +353,7 @@ int nand_write(const char *path, const char *buf, size_t size, off_t offset, str
 		return -ENOENT;
 	}
 	
-	//DONT READ TO MUCH Y0
+	//DONT WRITE TO MUCH Y0
 	if (size + offset > state[index].partition->partition_size) 
 		size = state[index].partition->partition_size - offset;
 	
