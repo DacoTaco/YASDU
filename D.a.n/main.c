@@ -40,6 +40,25 @@ char file_exists(const char* filename)
 	return 0;
 }
 
+int getPartitionInfo(char* partition, partition_info** info)
+{
+	if(partition == NULL || info == NULL)
+		return -1;
+	
+	for(int i = 0;i < PARTITION_COUNT;i++)
+	{
+		if(state.userPartitions[i].partition.name == NULL )
+			continue;
+
+		if (strcmp(partition, state.userPartitions[i].partition.name) == 0) 
+		{	
+			*info = &state.userPartitions[i].partition;
+			return i;
+		} 
+	}		
+	return -2;
+}
+
 int main(int argc, char *argv[]) 
 {
 	//loop trough all parameters and check if we have '-l' for local in there
@@ -74,6 +93,7 @@ int main(int argc, char *argv[])
 	int key_nr = 0;
 	while(getline(&line,&len,fp) >= 0)
 	{
+		partition_info* info = NULL;
 		char crypt[33];
 		char tweak[33];
 
@@ -103,27 +123,68 @@ int main(int argc, char *argv[])
 			printf("crypt(%d) : %s\n\r",key_nr,crypt);
 			printf("tweak(%d) : %s\n\r",key_nr,tweak);
 
+			switch(key_nr)
+			{
+				case 0:
+				case 1:
+					getPartitionInfo(PRODINFO.name, &info);
+					break;
+				case 2:
+					getPartitionInfo(SAFE.name, &info);
+					break;
+				case 3:
+					getPartitionInfo(SYSTEM.name, &info);
+					break;
+				case 4:
+					getPartitionInfo(USER.name, &info);
+					break;
+				default:
+					break;
+			}
+			
+			if(info == NULL)
+			{
+				printf("unknown usage\r\n");
+				key_nr++;
+				continue;
+			}
+			
 			//convert keys
 			for(unsigned int y = 0;y*2 < strlen(crypt);y++)
 			{
 				char number[3] = { 0 };
 				memcpy(number,crypt+(y*2),2);
-				UserPartitions[key_nr].crypt_key[y] = (unsigned char)strtol(number,NULL,16);
+				info->crypt_key[y] = (unsigned char)strtol(number,NULL,16);
 
 				memset(number,0,3);
 				memcpy(number,tweak+(y*2),2);
-				UserPartitions[key_nr].tweak_key[y] = (unsigned char)strtol(number,NULL,16);
+				info->tweak_key[y] = (unsigned char)strtol(number,NULL,16);
 			}
 
 			//the same key gets used for the first 2 partitions. hence a memcpy
-			if(key_nr == 0)
+			if(strcmp(info->name, PRODINFO.name) == 0 || strcmp(info->name, PRODINFOF.name) == 0)
 			{
-				memcpy(UserPartitions[key_nr+1].crypt_key,
-					   UserPartitions[key_nr].crypt_key,
+				partition_info* copy = NULL;
+				char* copyName = NULL;
+				
+				if(strcmp(info->name, PRODINFO.name) == 0)
+					copyName = PRODINFOF.name;
+				else
+					copyName = PRODINFO.name;
+				
+				if(getPartitionInfo(copyName, &copy) < 0 || copy == NULL)
+				{
+					printf("unknown partition\r\n");
+					key_nr++;
+					continue;
+				}
+				
+				memcpy(copy->crypt_key,
+					   info->crypt_key,
 					   KEY_SIZE);
 				
-				memcpy(UserPartitions[key_nr+1].tweak_key,
-					   UserPartitions[key_nr].tweak_key,
+				memcpy(copy->tweak_key,
+					   info->tweak_key,
 					   KEY_SIZE);
 				key_nr++;
 			}
@@ -131,7 +192,7 @@ int main(int argc, char *argv[])
 
 			//we read all keys
 			if(key_nr >= PARTITION_COUNT)
-			break;
+				break;
 		}
 	}
 	
@@ -143,17 +204,26 @@ int main(int argc, char *argv[])
 	}
 
 	//set up device & look for files...
-	printf("searching partitions...\n\r");
+	printf("searching partitions");
 	if(local_files > 0)
-	{
-		printf("using local files...\n");	
-	}
+		printf(" using local files");
+	printf("...\r\n");
 	
-	for(int i = 0;i < PARTITION_COUNT;i++)
-	{
-		state[i].partition = &UserPartitions[i];
-
-		char *path = malloc(32);
+	//check for the raw nand dump
+	
+	
+	for(int i = -1;i < PARTITION_COUNT;i++)
+	{		
+		file_info* partitionFile = NULL;
+		
+		if(i < 0)
+			partitionFile = &state.rawInfo;
+		else
+			partitionFile = &state.userPartitions[i];
+			
+		partitionFile->file_path = NULL;
+		
+		char* path = malloc(32);
 		if(path == NULL)
 		{
 			printf("failed to alloc memory for path\n\r");
@@ -163,28 +233,36 @@ int main(int argc, char *argv[])
 		// p1,p2,p9,p10,p11
 		if(local_files == 1)
 		{
-			snprintf(path,32,"./%s",state[i].partition->name);
+			snprintf(path,32,"./%s",partitionFile->partition.name);
 		}
 		else
 		{
-			snprintf(path,32,"/dev/%s",state[i].partition->switch_name);
+			snprintf(path,32,"/dev/%s",partitionFile->partition.switch_name);
 		}
 
-		printf("searching for %s...\n\r",path);
-		if(file_exists(path))
+		printf("searching for %s...\n\r",path);		
+		if(state.rawInfo.active)
 		{
-			printf("%s added as -> %s \n\r", path, state[i].partition->name);
-			state[i].file_path = path;
-			state[i].report = 1;
+			printf("found in NAND image %s\r\n", state.rawInfo.file_path);
+			partitionFile->active = 1;
+		}
+		else if(file_exists(path))
+		{
+			printf("%s added as -> %s \n\r", path, partitionFile->partition.name);
+			partitionFile->file_path = path;
+			partitionFile->active = 1;
 		}
 		else
 		{
-			state[i].report = 0;	
-			free(path);
+			partitionFile->active = 0;	
 		}
 		
+		//free memory if unused
+		if(partitionFile->file_path == NULL)
+			free(path);	
+		
 		//init lock
-		pthread_mutex_init(&state[i].lock, NULL);
+		pthread_mutex_init(&partitionFile->lock, NULL);
 	}
 
 	//and setup fuse device :')

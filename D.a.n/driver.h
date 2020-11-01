@@ -36,34 +36,40 @@ typedef struct {
 	size_t partition_offset;
 	size_t partition_size;
 	char encrypted;
+	char ID;
 	unsigned char tweak_key[KEY_SIZE];
 	unsigned char crypt_key[KEY_SIZE];
-} partitionInfo;
-
-typedef struct {
-	partitionInfo* partition;
-	char *file_path;
-	FILE* fp;
-	char report;
-	pthread_mutex_t lock;
-} partition_state;
+} partition_info;
 
 //there are 5 encrypted user partitions on the nand
-#define NAND		(partitionInfo){"NAND", "mmcblk1p666", 0x00000000, 0xFFFFFFFFFFFF, 0, {}, {}}
-#define PRODINFO	(partitionInfo){"PRODINFO", "mmcblk1p1", 0x00004400, 0x003FBC00, 1, {}, {}}
-#define PRODINFOF	(partitionInfo){"PRODINFOF", "mmcblk1p2", 0x00400000, 0x00400000, 1, {}, {}}
-#define SAFE		(partitionInfo){"SAFE", "mmcblk1p9", 0x03800000, 0x04000000, {}, 1, {}}
-#define SYSTEM	 	(partitionInfo){"SYSTEM", "mmcblk1p10", 0x07800000, 0xA0000000, 1, {}, {}}
-#define USER		(partitionInfo){"USER", "mmcblk1p11", 0xA7800000, 0x680000000, 1, {}, {}}
+#define ID_NAND		0
 #define PARTITION_COUNT 5
+#define RAWNAND		(partition_info){"NAND"		, "mmcblk1p666"	, 0x00000000, 0xFFFFFFFFFFFF, 	0, ID_NAND		, {}, {} }
+#define PRODINFO	(partition_info){"PRODINFO"	, "mmcblk1p1"	, 0x00004400, 0x003FBC00, 		1, ID_NAND+1	, {}, {} }
+#define PRODINFOF	(partition_info){"PRODINFOF", "mmcblk1p2"	, 0x00400000, 0x00400000, 		1, ID_NAND+2	, {}, {} }
+#define SAFE		(partition_info){"SAFE"		, "mmcblk1p9"	, 0x03800000, 0x04000000, 		1, ID_NAND+3	, {}, {} }
+#define SYSTEM	 	(partition_info){"SYSTEM"	, "mmcblk1p10"	, 0x07800000, 0xA0000000, 		1, ID_NAND+4	, {}, {} }
+#define USER		(partition_info){"USER"  	, "mmcblk1p11"	, 0xA7800000, 0x680000000, 		1, ID_NAND+5	, {}, {} }
 #define NAND_SECTOR_SIZE 0x4000
 #define RAW_USERPARTITION_BASE 0x01800000
-extern partitionInfo UserPartitions[PARTITION_COUNT];
-extern partition_state state[PARTITION_COUNT];
+
+typedef struct {
+	partition_info partition;
+	char *file_path;
+	FILE* fp;
+	char active;
+	pthread_mutex_t lock;
+} file_info;
+
+typedef struct {
+	file_info rawInfo;
+	file_info userPartitions[PARTITION_COUNT];
+} fs_state;
+
+extern fs_state state;
 extern struct fuse_operations nand_oper;
 
 int nand_getattr(const char *path, struct stat *stbuf);
-
 int nand_getxattr(const char* path,const char* attrib_name,char* buf, size_t size);
 int nand_setxattr(const char* path,const char* attrib_name,const char *value, size_t size, int flags);
 
