@@ -34,13 +34,13 @@ compile the code by running make and start D.a.n by running run_Dan.sh, which do
 ```
 ./Dan -f -o allow_root /mnt/Dan/
 ```
-if you want to use it with local dumps, add a -l between -f and -o
+if you want to use it with local dumps (NAND, PRODINFO, USER, ...), add a -l between -f and -o
 
 normally, you should see the keys being detected, the partitions it found and where it added them on the mount
-if you want to mount said partitions so you can browse them in linux just create the mount output directory and mount them
-
+if you want to mount said partitions so you can browse them in linux just create the mount output directory and mount them.
+for example, if you want to mount the user partition : 
 ```
-sudo mount -o ro,loop /mnt/Dan /mnt/dec_Nand
+sudo mount -o sync,loop -t vfat /mnt/Dan/USER /mnt/dec_USER
 ```
 
 enjoy!
