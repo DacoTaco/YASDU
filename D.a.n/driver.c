@@ -281,7 +281,7 @@ int nand_getdir(const char *path,fuse_dirh_t hd,fuse_dirfil_t filler)
 	{
 		if (state.userPartitions[i].active == 1)
 		{
-			filler(buf,state.userPartitions[i].partition.name,0);
+			filler(hd,state.userPartitions[i].partition.name,0);
 		}
 #endif
 

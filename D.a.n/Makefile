@@ -7,13 +7,15 @@ LDFLAGS  = $(PKGFLAGS)
 
 PKGFLAGS = `pkg-config fuse --cflags --libs`
 
-objects = aes.o driver.o main.o
+objects = aes.o driver.o main.o mount.o
 
 all: build_driver
 
-main.o : main.c driver.h aes.h
+main.o : mount.o main.c
 
-driver.o : driver.c driver.h aes.h
+mount.o : driver.o fuse.h mount.c mount.h
+
+driver.o : driver.c driver.h fuse.h aes.o
 
 aes.o : aes.c aes.h
 

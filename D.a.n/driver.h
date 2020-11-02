@@ -24,11 +24,10 @@
 #ifndef _DRIVER_H_
 
 #define _DRIVER_H_
-#define FUSE_USE_VERSION 26
 #define _FILE_OFFSET_BITS 64
 #define KEY_SIZE 32
 
-#include <fuse.h>
+#include "fuse.h"
 
 typedef struct {
 	char* name;

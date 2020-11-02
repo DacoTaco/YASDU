@@ -24,9 +24,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <errno.h>
 #include <pthread.h>
+#include <signal.h>
+#include <sys/mount.h>
 #include "driver.h"
+#include "mount.h"
 
 char file_exists(const char* filename)
 {
@@ -59,27 +63,14 @@ int getPartitionInfo(char* partition, partition_info** info)
 	return -2;
 }
 
-int main(int argc, char *argv[]) 
+void interrupt_handler(int dummy) 
 {
-	//loop trough all parameters and check if we have '-l' for local in there
-	char* fuse_argv[argc];
-	int fuse_argc = 0;
-	char local_files = 0;
+	printf("INT HANDLER : SIGINT RECEIVED\n");
+	unmount_fuse();
+}
 
-	for(int i = 0;i < argc;i++)
-	{
-		if(strncmp(argv[i],"-l",2) == 0)
-		{
-			local_files = 1;
-		}
-		else
-		{
-			fuse_argv[fuse_argc] = argv[i];
-			fuse_argc++;
-		}
-
-	}
-
+int readBisKeys()
+{
 	//first load in the keys
 	FILE* fp = fopen("biskeydump.txt","r");
 	if(fp == NULL)
@@ -101,107 +92,147 @@ int main(int argc, char *argv[])
 		tweak[32] = 0;
 
 		//printf("%s\n",line);
-		if(strncmp(line,"BIS KEY ",8) == 0)
+		if(strncmp(line,"BIS KEY ",8) != 0)
+			continue;
+		
+		//read crypt line
+		char* split = line;
+		for(int i = 0;i <= 1;i++)
 		{
-			char* split = line;
-			for(int i = 0;i <= 1;i++)
-			{
-				split = split+10-i;
-				strncpy(crypt,split,32);
-			}
+			split = split+10-i;
+			strncpy(crypt,split,32);
+		}
 
-			if(getline(&line,&len,fp) >= 0)
-			{
-				char* split = line;
-				for(int i = 0;i <= 1;i++)
-				{
-					split = split+10-i;
-					strncpy(tweak,split,32);
-				}
-			}
+		//read tweak line
+		if(getline(&line,&len,fp) < 0)
+			break;
+		split = line;
+		for(int i = 0;i <= 1;i++)
+		{
+			split = split+10-i;
+			strncpy(tweak,split,32);
+		}
 
-			printf("crypt(%d) : %s\n\r",key_nr,crypt);
-			printf("tweak(%d) : %s\n\r",key_nr,tweak);
+		printf("crypt(%d) : %s\n\r",key_nr,crypt);
+		printf("tweak(%d) : %s\n\r",key_nr,tweak);
 
-			switch(key_nr)
+		switch(key_nr)
+		{
+			case 0:
+			case 1:
+				getPartitionInfo(PRODINFO.name, &info);
+				break;
+			case 2:
+				getPartitionInfo(SAFE.name, &info);
+				break;
+			case 3:
+				getPartitionInfo(SYSTEM.name, &info);
+				break;
+			case 4:
+				getPartitionInfo(USER.name, &info);
+				break;
+			default:
+				break;
+		}
+
+		if(info == NULL)
+		{
+			printf("unknown usage\r\n");
+			key_nr++;
+			continue;
+		}
+
+		//convert keys
+		for(unsigned int y = 0;y*2 < strlen(crypt);y++)
+		{
+			char number[3] = { 0 };
+			memcpy(number,crypt+(y*2),2);
+			info->crypt_key[y] = (unsigned char)strtol(number,NULL,16);
+
+			memset(number,0,3);
+			memcpy(number,tweak+(y*2),2);
+			info->tweak_key[y] = (unsigned char)strtol(number,NULL,16);
+		}
+
+		//the same key gets used for the first 2 partitions. hence a memcpy
+		if(strcmp(info->name, PRODINFO.name) == 0 || strcmp(info->name, PRODINFOF.name) == 0)
+		{
+			partition_info* copy = NULL;
+			char* copyName = NULL;
+
+			if(strcmp(info->name, PRODINFO.name) == 0)
+				copyName = PRODINFOF.name;
+			else
+				copyName = PRODINFO.name;
+
+			if(getPartitionInfo(copyName, &copy) < 0 || copy == NULL)
 			{
-				case 0:
-				case 1:
-					getPartitionInfo(PRODINFO.name, &info);
-					break;
-				case 2:
-					getPartitionInfo(SAFE.name, &info);
-					break;
-				case 3:
-					getPartitionInfo(SYSTEM.name, &info);
-					break;
-				case 4:
-					getPartitionInfo(USER.name, &info);
-					break;
-				default:
-					break;
-			}
-			
-			if(info == NULL)
-			{
-				printf("unknown usage\r\n");
+				printf("unknown partition\r\n");
 				key_nr++;
 				continue;
 			}
-			
-			//convert keys
-			for(unsigned int y = 0;y*2 < strlen(crypt);y++)
-			{
-				char number[3] = { 0 };
-				memcpy(number,crypt+(y*2),2);
-				info->crypt_key[y] = (unsigned char)strtol(number,NULL,16);
 
-				memset(number,0,3);
-				memcpy(number,tweak+(y*2),2);
-				info->tweak_key[y] = (unsigned char)strtol(number,NULL,16);
-			}
+			memcpy(copy->crypt_key,
+				   info->crypt_key,
+				   KEY_SIZE);
 
-			//the same key gets used for the first 2 partitions. hence a memcpy
-			if(strcmp(info->name, PRODINFO.name) == 0 || strcmp(info->name, PRODINFOF.name) == 0)
-			{
-				partition_info* copy = NULL;
-				char* copyName = NULL;
-				
-				if(strcmp(info->name, PRODINFO.name) == 0)
-					copyName = PRODINFOF.name;
-				else
-					copyName = PRODINFO.name;
-				
-				if(getPartitionInfo(copyName, &copy) < 0 || copy == NULL)
-				{
-					printf("unknown partition\r\n");
-					key_nr++;
-					continue;
-				}
-				
-				memcpy(copy->crypt_key,
-					   info->crypt_key,
-					   KEY_SIZE);
-				
-				memcpy(copy->tweak_key,
-					   info->tweak_key,
-					   KEY_SIZE);
-				key_nr++;
-			}
+			memcpy(copy->tweak_key,
+				   info->tweak_key,
+				   KEY_SIZE);
 			key_nr++;
-
-			//we read all keys
-			if(key_nr >= PARTITION_COUNT)
-				break;
 		}
+		key_nr++;
+
+		//we read all keys
+		if(key_nr >= PARTITION_COUNT)
+			break;
 	}
 	
 	fclose(fp);
 	if(key_nr < 3)
 	{
-		printf("did not get all keys!");
+		printf("unable to retrieve all BIS keys!");
 		return -EFAULT;
 	}
+	
+	return 1;
+}
+
+int main(int argc, char *argv[]) 
+{
+	//loop trough all parameters and check if we have '-l' for local in there
+	//we also setup the fuse arguments in the process
+	const int fuse_arg_start = 2;
+	int fuse_argc = fuse_arg_start;
+	char* fuse_argv[fuse_argc+argc];
+	char local_files = 0;
+
+	for(int i = 0;i < argc;i++)
+	{		
+		if(strncmp(argv[i],"-l",2) == 0)
+		{
+			local_files = 1;
+		}
+		else
+		{
+			printf("adding '%s' to fuse's arguments\r\n",argv[i]);
+			fuse_argv[fuse_argc-fuse_arg_start] = argv[i];
+			fuse_argc++;
+		}
+
+	}
+
+	fuse_argv[fuse_argc-2] = "-o";
+	fuse_argv[fuse_argc-1] = "allow_root";
+	fuse_mount_args fuse_args;
+	fuse_args.mountPoint = fuseMountPoint;
+	fuse_args.argv = fuse_argv;
+	fuse_args.argc = fuse_argc;
+
+	//read bis keys
+	int ret= readBisKeys();
+	if(ret < 0)
+		return 0;
 
 	//set up device & look for files...
 	printf("searching partitions");
@@ -209,9 +240,8 @@ int main(int argc, char *argv[])
 		printf(" using local files");
 	printf("...\r\n");
 	
-	//check for the raw nand dump
-	
-	
+	//check for the raw nand dump and then the partition files.
+	char partitionsFound = 0;
 	for(int i = -1;i < PARTITION_COUNT;i++)
 	{		
 		file_info* partitionFile = NULL;
@@ -243,6 +273,7 @@ int main(int argc, char *argv[])
 		printf("searching for %s...\n\r",path);		
 		if(state.rawInfo.active)
 		{
+			partitionsFound = 1;
 			printf("found in NAND image %s\r\n", state.rawInfo.file_path);
 			partitionFile->active = 1;
 		}
@@ -251,6 +282,7 @@ int main(int argc, char *argv[])
 			printf("%s added as -> %s \n\r", path, partitionFile->partition.name);
 			partitionFile->file_path = path;
 			partitionFile->active = 1;
+			partitionsFound = 1;
 		}
 		else
 		{
@@ -263,14 +295,64 @@ int main(int argc, char *argv[])
 		
 		//init lock
 		pthread_mutex_init(&partitionFile->lock, NULL);
+	}	
+	
+	if(!partitionsFound)
+	{
+		printf("no partitions found!\r\n");
+		return 0;
 	}
 
+	//if the mounting point doesn't exists -> create it
+	struct stat st = {0};
+	if (stat(fuseMountPoint, &st) < 0 ) 
+	{
+		mkdir(fuseMountPoint, 0755);
+	}
+	
 	//and setup fuse device :')
 	printf("LEGGO\n\r");
 
-#if FUSE_USE_VERSION < 26
-	return fuse_main(fuse_argc, fuse_argv, &nand_oper);
-#else
-	return fuse_main(fuse_argc, fuse_argv, &nand_oper,&state);
-#endif
+	pthread_t fuseThread = 0;
+	int err = pthread_create(&fuseThread, NULL, &mount_fuse, &fuse_args);
+	if (err != 0)
+		printf("can't create thread : %s\r\n", strerror(err));
+	else
+	{
+		printf("Thread created successfully\r\n");
+		usleep(500);
+	}
+	
+	//wait for fuse to be done initialising
+	while(fuseMountState == Init) { }
+	
+	if(fuseMountState == Running)
+	{
+		printf("fuse initialised!\r\n");
+		printf("mounting decrypted partitions...\r\n");
+		
+		/*int mount(const char *source, const char *target,
+                 const char *filesystemtype, unsigned long mountflags,
+                 const void *data);*/
+		int mountret = mount("./decrypted/PRODINFOF", "/mnt/nand/", "vfat", MS_RDONLY, NULL);
+		printf("ret : %d\r\n",mountret);
+		if(mountret < 0)
+		{
+			printf("error : %s\r\n", strerror(mountret));	
+		}
+		else
+			mountret = umount2("/mnt/nand/", 0);
+		
+		//set handler of sigint(ctrl-c) and wait for fuse to stop.
+		void* ret = NULL;
+		signal(SIGINT, interrupt_handler);
+		pthread_join(fuseThread , &ret);	
+	}
+	
+	//shutdown - umount and dispose of fuse
+	unmount_fuse();	
+	pthread_cancel(fuseThread);
+	
+	printf("THE END\n");
+	exit(0);
 }
