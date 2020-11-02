@@ -29,18 +29,18 @@ once installed, clone YASDU like always
 git clone https://github.com/DacoTaco/YASDU.git
 ```
 
-compile the code by running make and start D.a.n by running run_Dan.sh, which does some preperations and executes d.a.n. as following
+compile the code by running make and start D.a.n by running 
 
 ```
-./Dan -f -o allow_root /mnt/Dan/
+./Dan
 ```
-if you want to use it with local dumps (NAND, PRODINFO, USER, ...), add a -l between -f and -o
+if you want to use it with local dumps (NAND, PRODINFO, USER, ...), add a -l at the end
 
 normally, you should see the keys being detected, the partitions it found and where it added them on the mount
 if you want to mount said partitions so you can browse them in linux just create the mount output directory and mount them.
 for example, if you want to mount the user partition : 
 ```
-sudo mount -o sync,loop -t vfat /mnt/Dan/USER /mnt/dec_USER
+sudo mount -o sync,loop -t vfat ./decrypted/USER /mnt/dec_USER
 ```
 
 enjoy!
