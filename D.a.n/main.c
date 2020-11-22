@@ -66,6 +66,16 @@ int getPartitionInfo(char* partition, partition_info** info)
 void interrupt_handler(int dummy) 
 {
 	printf("INT HANDLER : SIGINT RECEIVED\n");
+	
+	//cleanup
+	for(int i = 0;i < PARTITION_COUNT;i++)
+	{
+		file_info* partitionFile = &state.userPartitions[i];
+		if(partitionFile->active <= 0 || partitionFile->mounted <= 0)
+			continue;
+
+		unMountDecryptedPartition(partitionFile->partition.name);			
+	}
 	unmount_fuse();
 }
 
@@ -206,13 +216,14 @@ int main(int argc, char *argv[])
 	int fuse_argc = fuse_arg_start;
 	char* fuse_argv[fuse_argc+argc];
 	char local_files = 0;
+	char read_only = 1;
 
 	for(int i = 0;i < argc;i++)
 	{		
 		if(strncmp(argv[i],"-l",2) == 0)
-		{
 			local_files = 1;
-		}
+		else if(strncmp(argv[i],"-rw",3) == 0)
+			read_only = 0;
 		else
 		{
 			printf("adding '%s' to fuse's arguments\r\n",argv[i]);
@@ -222,16 +233,25 @@ int main(int argc, char *argv[])
 
 	}
 
+	if(read_only)
+	{
+		printf("going in read only mode\r\n");
+		fuse_argv[fuse_argc-fuse_arg_start] = "-o";
+		fuse_argc++;
+		fuse_argv[fuse_argc-fuse_arg_start] = "ro";
+		fuse_argc++;
+	}
+	
 	fuse_argv[fuse_argc-2] = "-o";
-	fuse_argv[fuse_argc-1] = "allow_root";
+	fuse_argv[fuse_argc-1] = "allow_other";
 	fuse_mount_args fuse_args;
 	fuse_args.mountPoint = fuseMountPoint;
 	fuse_args.argv = fuse_argv;
 	fuse_args.argc = fuse_argc;
 
 	//read bis keys
-	int ret= readBisKeys();
-	if(ret < 0)
+	int readKeys = readBisKeys();
+	if(readKeys < 0)
 		return 0;
 
 	//set up device & look for files...
@@ -326,32 +346,46 @@ int main(int argc, char *argv[])
 	//wait for fuse to be done initialising
 	while(fuseMountState == Init) { }
 	
-	if(fuseMountState == Running)
+	void* ret = NULL;
+	if(fuseMountState != Running)
 	{
-		printf("fuse initialised!\r\n");
-		printf("mounting decrypted partitions...\r\n");
-		
-		/*int mount(const char *source, const char *target,
-                 const char *filesystemtype, unsigned long mountflags,
-                 const void *data);*/
-		int mountret = mount("./decrypted/PRODINFOF", "/mnt/nand/", "vfat", MS_RDONLY, NULL);
-		printf("ret : %d\r\n",mountret);
-		if(mountret < 0)
-		{
-			printf("error : %s\r\n", strerror(mountret));	
-		}
-		else
-			mountret = umount2("/mnt/nand/", 0);
-		
-		//set handler of sigint(ctrl-c) and wait for fuse to stop.
-		void* ret = NULL;
-		signal(SIGINT, interrupt_handler);
-		pthread_join(fuseThread , &ret);	
+		printf("failed to initialise fuse \r\n");
+		unmount_fuse();	
+		pthread_join(fuseThread , &ret);
+		pthread_cancel(fuseThread);
+		exit(0);		
 	}
 	
-	//shutdown - umount and dispose of fuse
-	unmount_fuse();	
-	pthread_cancel(fuseThread);
+	printf("fuse initialised!\r\n");
+	printf("mounting decrypted partitions...\r\n");
+	int mounted = 0;
+	for(int i = 0;i < PARTITION_COUNT;i++)
+	{
+		file_info* partitionFile = &state.userPartitions[i];
+		if(partitionFile->active <= 0 || partitionFile->mounted > 0)
+			continue;
+		
+		if(mountPartition(partitionFile->partition.name, read_only) < 0)
+			printf("failed to mount %s!\r\n", partitionFile->file_path);
+		else
+		{
+			mounted++;
+			partitionFile->mounted = 1;
+		}
+			
+	}
+	
+	if(mounted <= 0)
+	{
+		printf("failed to mount decrypted partitions\r\n");
+		unmount_fuse();	
+		pthread_join(fuseThread , &ret);
+		exit(0);
+	}
+
+	//set handler of sigint(ctrl-c) and wait for fuse to stop.
+	signal(SIGINT, interrupt_handler);
+	pthread_join(fuseThread , &ret);	
 	
 	printf("THE END\n");
 	exit(0);

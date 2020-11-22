@@ -57,6 +57,7 @@ typedef struct {
 	char *file_path;
 	FILE* fp;
 	char active;
+	char mounted;
 	pthread_mutex_t lock;
 } file_info;
 

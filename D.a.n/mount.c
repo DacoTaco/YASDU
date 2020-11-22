@@ -23,7 +23,13 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 #include <sys/mount.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <linux/loop.h>
+#include <fcntl.h>
 #include "fuse.h"
 #include "driver.h"
 #include "mount.h"
@@ -73,6 +79,8 @@ void* mount_fuse(void * args)
 	//fuse_loop(fuse);
 	fuseMountState = Running;
 	int ret = fuse_loop_mt(fuse);
+	
+	//we are exitting...
 	fuse_remove_signal_handlers(se);
 	fuseMountState = Disabled;
 	return &ret;
@@ -83,5 +91,70 @@ void unmount_fuse()
 	if(fuseMountState != Running)
 		return;
 	
+	sync();
 	fuse_unmount(fuseMountPoint, chan);
+}
+
+int mountPartition(const char* input, char read_only)
+{
+	if(input == NULL || strnlen(input, 265) >= 255 )
+		return -1;
+	
+	int ret = -1;
+	char destination[512];
+	memset(destination, 0, 512);
+	snprintf(destination, 512, "%s%s", mountDestination, input);
+	char source[512];
+	memset(source, 0, 512);
+	snprintf(source, 512, "%s%s", fuseMountPoint, input);
+	printf("mounting %s -> %s\r\n", source, destination);
+		
+	//create folders if they don't exist yet
+	mkdir(mountDestination, 0666);
+	struct stat info;
+	ret = stat( destination, &info );
+	if( ret != 0 || !(info.st_mode & S_IFDIR ) )
+	{
+		printf("creating %s...\r\n", destination);
+		ret = mkdir(destination, 0777); 
+		if(ret < 0)
+		{
+			printf("failed to create %s(%d)\r\n", destination, ret);
+			return ret;
+		}
+	}
+	
+	//using stdlib's mount would be better, but it refuses it somehow (probably cause its not set to mount as loop
+	//however, somehow calling mount works without mounting it as loop device? o.O
+	/*int mount(const char *source, const char *target,
+			 const char *filesystemtype, unsigned long mountflags,
+			 const void *data);*/
+	//ret = mount(source, destination, "vfat", 0, NULL);
+	char str[2048];
+	memset(str,0,2048);
+	snprintf(str, 2048, "mount -t vfat -o sync,%s %s %s", read_only ? "ro" : "", source, destination);	
+	//printf("%s\r\n",str);
+	ret = system(str);
+	
+	//printf("ret : %d\r\n",ret);
+	if(ret != 0)
+	{
+		printf("\terror(%d) : %s\r\n", ret, strerror(ret));	
+		return -2;
+	}
+	return ret;	
+}
+
+int unMountDecryptedPartition(const char* name)
+{
+	if(name == NULL || strnlen(name, 265) >= 255)
+		return -1;
+	
+	char destination[512];
+	memset(destination, 0, 512);
+	snprintf(destination, 512, "%s%s", mountDestination, name);
+
+	printf("unmounting %s\r\n", destination);
+	sync();	
+	return umount2(destination, MNT_FORCE);
 }

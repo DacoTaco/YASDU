@@ -38,10 +38,13 @@ enum fuseState
 };
 
 static char* fuseMountPoint = "./decrypted/";
+static char* mountDestination = "/mnt/nand/";
 extern char fuseMountState;
 
 
 void* mount_fuse(void * args);
 void unmount_fuse();
+int mountPartition(const char* input, char read_only);
+int unMountDecryptedPartition(const char* name);
 
 #endif

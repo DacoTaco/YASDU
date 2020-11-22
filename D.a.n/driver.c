@@ -33,14 +33,14 @@
 
 fs_state state = { 
 	//Raw Partition
-	{ RAWNAND, NULL, NULL, 0, {} },
+	{ RAWNAND, NULL, NULL, 0, 0,{} },
 	//User Partitions
 	{
-		{ PRODINFO, NULL, NULL, 0, {} },
-		{ PRODINFOF, NULL, NULL, 0, {} },
-		{ SAFE, NULL, NULL, 0, {} },
-		{ SYSTEM, NULL, NULL, 0, {} },
-		{ USER, NULL, NULL, 0, {} },
+		{ PRODINFO, NULL, NULL, 0, 0,{} },
+		{ PRODINFOF, NULL, NULL, 0, 0,{} },
+		{ SAFE, NULL, NULL, 0, 0,{} },
+		{ SYSTEM, NULL, NULL, 0, 0,{} },
+		{ USER, NULL, NULL, 0, 0,{} },
 	}
 };
 
@@ -137,20 +137,33 @@ int nand_getattr(const char *path, struct stat *stbuf)
 	} 
 	else
 	{
-		partition_info* info = NULL;
-		if(nand_getPartitionInfo(path, &info) >= 0 )
+		partition_info* partitionInfo = NULL;
+		file_info* fileInfo = NULL;
+		struct stat fileStat;
+		if(nand_getPartitionInfo(path, &partitionInfo) >= 0 && 
+		   nand_getPartitionFileInfo(path, &fileInfo) >= 0 && 
+		   stat(fileInfo->file_path, &fileStat) >= 0 )
 		{
 			// the exposed files!
-			stbuf->st_mode = S_IFREG | S_IRWXU | S_IRWXG | S_IRWXO;
+			//stbuf->st_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+			stbuf->st_dev = fileStat.st_dev;
+			stbuf->st_mode = fileStat.st_mode;
+			stbuf->st_ino = fileStat.st_ino;
 			stbuf->st_nlink = 1;
-			stbuf->st_uid = getuid();
-			stbuf->st_gid = getgid();
-			stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL);
-			stbuf->st_size = info->partition_size;
+			stbuf->st_uid = fileStat.st_uid;//getuid();
+			stbuf->st_gid = fileStat.st_gid;//getgid();
+			stbuf->st_mtime = fileStat.st_mtime;
+			stbuf->st_atime = fileStat.st_atime;//stbuf->st_mtime = stbuf->st_ctime = time(NULL);
+			stbuf->st_size = partitionInfo->partition_size;
+			stbuf->st_blksize = 0x10;
+			stbuf->st_blocks = partitionInfo->partition_size / 0x10;
+			//device type - only used when block device
+			stbuf->st_rdev = fileStat.st_rdev;
 		}
 		else
 		{
 			//we dont know what its asking attributes off. so piss off y0
+			printf("failed to retrieve file attributes\r\n");
 			ret = -ENOENT;
 		}
 	}
